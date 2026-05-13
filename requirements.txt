@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────
+# InfoFile — Dependencias
+# ──────────────────────────────────────────────
+#
+# Instalar todo de una vez:
+#   py -m pip install -r requirements.txt
+#
+# Actualizar versiones fijadas:
+#   py -m pip install -r requirements.txt --upgrade
+# ──────────────────────────────────────────────
+
+# Interfaz gráfica (UI, tray, diálogos)
+PyQt6>=6.6.0
+
+# No se necesitan dependencias externas adicionales:
+# - sqlite3    → incluido en Python (stdlib)
+# - winreg     → incluido en Python para Windows (stdlib)
+# - pathlib    → incluido en Python (stdlib)
+# - logging    → incluido en Python (stdlib)
+# - configparser → incluido en Python (stdlib)
+# - ctypes     → incluido en Python (stdlib)
+# - shutil     → incluido en Python (stdlib)
+
