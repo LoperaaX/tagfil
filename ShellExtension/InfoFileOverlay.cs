@@ -1,18 +1,9 @@
 /*
- * InfoFileOverlay.cs
- * Shell Extension — IShellIconOverlayIdentifier para InfoFile
- *
- * Muestra un ícono overlay morado sobre archivos/carpetas
- * que tienen descripción en InfoFile.
- *
- * Consulta la DB de SQLite directamente para máxima compatibilidad.
- * Fallback: lee el ADS :InfoFile si SQLite no está disponible.
+ * InfoFileOverlay.cs - Versión Estable (Solo ADS)
  */
-
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Data.SQLite;
 
 namespace InfoFileOverlay
 {
@@ -22,31 +13,22 @@ namespace InfoFileOverlay
     [ProgId("InfoFile.OverlayIcon")]
     public class InfoFileOverlayHandler : IShellIconOverlayIdentifier
     {
-        private static readonly string DbPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "InfoFile", "infofile.db"
-        );
-
         private static readonly string IconPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "InfoFile", "overlay.ico"
         );
 
-        // ── IShellIconOverlayIdentifier ──────────────
-
-        public int GetOverlayInfo(
-            IntPtr pwszIconFile, int cchMax,
-            out int pIndex, out uint pdwFlags)
+        public int GetOverlayInfo(IntPtr pwszIconFile, int cchMax, out int pIndex, out uint pdwFlags)
         {
             WriteString(pwszIconFile, IconPath, cchMax);
-            pIndex   = 0;
+            pIndex = 0;
             pdwFlags = 0x00000001; // ISIOI_ICONFILE
             return 0; // S_OK
         }
 
         public int GetPriority(out int pIPriority)
         {
-            pIPriority = 50;
+            pIPriority = 10; // Prioridad alta
             return 0;
         }
 
@@ -55,50 +37,31 @@ namespace InfoFileOverlay
             try
             {
                 string path = Path.GetFullPath(pwszPath);
-                if (HasDescription(path)) return 0;  // S_OK
-            }
-            catch { }
-            return 1; // S_FALSE
-        }
+                string adsPath = path + ":InfoFile";
 
-        // ── Consulta DB ──────────────────────────────
-
-        private bool HasDescription(string path)
-        {
-            // Primero intentar SQLite
-            if (File.Exists(DbPath))
-            {
-                try
+                if (File.Exists(adsPath))
                 {
-                    string cs = $"Data Source={DbPath};Version=3;Read Only=True;";
-                    using (var conn = new SQLiteConnection(cs))
+                    string content = File.ReadAllText(adsPath).Trim();
+                    if (!string.IsNullOrWhiteSpace(content))
+                        return 0; // Mostrar overlay
+                }
+
+                // Soporte para carpetas
+                if (Directory.Exists(path))
+                {
+                    string desktopIni = Path.Combine(path, "desktop.ini");
+                    if (File.Exists(desktopIni))
                     {
-                        conn.Open();
-                        using (var cmd = conn.CreateCommand())
-                        {
-                            cmd.CommandText =
-                                "SELECT 1 FROM files " +
-                                "WHERE path=@p AND description IS NOT NULL " +
-                                "AND TRIM(description)!='' LIMIT 1";
-                            cmd.Parameters.AddWithValue("@p", path);
-                            return cmd.ExecuteScalar() != null;
-                        }
+                        string content = File.ReadAllText(desktopIni);
+                        if (content.Contains("InfoTip") || content.Contains("InfoFile"))
+                            return 0;
                     }
                 }
-                catch { }
             }
+            catch { }
 
-            // Fallback: ADS
-            try
-            {
-                string ads = path + ":InfoFile";
-                return File.Exists(ads) &&
-                       !string.IsNullOrWhiteSpace(File.ReadAllText(ads));
-            }
-            catch { return false; }
+            return 1; // No mostrar
         }
-
-        // ── Helper ───────────────────────────────────
 
         private static void WriteString(IntPtr dest, string src, int max)
         {
@@ -109,22 +72,16 @@ namespace InfoFileOverlay
         }
     }
 
-    // ── Interfaz COM ─────────────────────────────────
-
     [ComImport]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     [Guid("0C6C4200-C589-11D0-999A-00C04FD655E1")]
     public interface IShellIconOverlayIdentifier
     {
         [PreserveSig]
-        int GetOverlayInfo(IntPtr pwszIconFile, int cchMax,
-            [Out] out int pIndex, [Out] out uint pdwFlags);
-
+        int GetOverlayInfo(IntPtr pwszIconFile, int cchMax, [Out] out int pIndex, [Out] out uint pdwFlags);
         [PreserveSig]
         int GetPriority([Out] out int pIPriority);
-
         [PreserveSig]
-        int IsMemberOf([MarshalAs(UnmanagedType.LPWStr)] string pwszPath,
-            uint dwAttrib);
+        int IsMemberOf([MarshalAs(UnmanagedType.LPWStr)] string pwszPath, uint dwAttrib);
     }
 }

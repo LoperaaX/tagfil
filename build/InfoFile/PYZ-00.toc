@@ -1,0 +1,469 @@
+('D:\\VS CODE\\InfoFile\\build\\InfoFile\\PYZ-00.pyz',
+ [('PyQt6',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PyQt6\\__init__.py',
+   'PYMODULE-1'),
+  ('__future__',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\__future__.py',
+   'PYMODULE-1'),
+  ('_aix_support',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_aix_support.py',
+   'PYMODULE-1'),
+  ('_colorize',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_colorize.py',
+   'PYMODULE-1'),
+  ('_compat_pickle',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_compat_pickle.py',
+   'PYMODULE-1'),
+  ('_compression',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_compression.py',
+   'PYMODULE-1'),
+  ('_opcode_metadata',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_opcode_metadata.py',
+   'PYMODULE-1'),
+  ('_py_abc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_py_abc.py',
+   'PYMODULE-1'),
+  ('_pydatetime',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_pydatetime.py',
+   'PYMODULE-1'),
+  ('_pydecimal',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_pydecimal.py',
+   'PYMODULE-1'),
+  ('_pyi_rth_utils',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PyInstaller\\fake-modules\\_pyi_rth_utils\\__init__.py',
+   'PYMODULE-1'),
+  ('_pyi_rth_utils.qt',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PyInstaller\\fake-modules\\_pyi_rth_utils\\qt.py',
+   'PYMODULE-1'),
+  ('_strptime',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_strptime.py',
+   'PYMODULE-1'),
+  ('_threading_local',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\_threading_local.py',
+   'PYMODULE-1'),
+  ('argparse',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\argparse.py',
+   'PYMODULE-1'),
+  ('ast',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\ast.py',
+   'PYMODULE-1'),
+  ('base64',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\base64.py',
+   'PYMODULE-1'),
+  ('bisect',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\bisect.py',
+   'PYMODULE-1'),
+  ('bz2',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\bz2.py',
+   'PYMODULE-1'),
+  ('calendar',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\calendar.py',
+   'PYMODULE-1'),
+  ('code',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\code.py',
+   'PYMODULE-1'),
+  ('codeop',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\codeop.py',
+   'PYMODULE-1'),
+  ('config', 'D:\\VS CODE\\InfoFile\\config.py', 'PYMODULE-1'),
+  ('configparser',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\configparser.py',
+   'PYMODULE-1'),
+  ('context_menu', 'D:\\VS CODE\\InfoFile\\context_menu.py', 'PYMODULE-1'),
+  ('contextlib',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\contextlib.py',
+   'PYMODULE-1'),
+  ('contextvars',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\contextvars.py',
+   'PYMODULE-1'),
+  ('copy',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\copy.py',
+   'PYMODULE-1'),
+  ('csv',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\csv.py',
+   'PYMODULE-1'),
+  ('ctypes',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\ctypes\\__init__.py',
+   'PYMODULE-1'),
+  ('ctypes._endian',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\ctypes\\_endian.py',
+   'PYMODULE-1'),
+  ('ctypes.wintypes',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\ctypes\\wintypes.py',
+   'PYMODULE-1'),
+  ('database', 'D:\\VS CODE\\InfoFile\\database.py', 'PYMODULE-1'),
+  ('dataclasses',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\dataclasses.py',
+   'PYMODULE-1'),
+  ('datetime',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\datetime.py',
+   'PYMODULE-1'),
+  ('decimal',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\decimal.py',
+   'PYMODULE-1'),
+  ('dialogs', 'D:\\VS CODE\\InfoFile\\dialogs.py', 'PYMODULE-1'),
+  ('dis',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\dis.py',
+   'PYMODULE-1'),
+  ('fnmatch',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\fnmatch.py',
+   'PYMODULE-1'),
+  ('fractions',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\fractions.py',
+   'PYMODULE-1'),
+  ('getopt',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\getopt.py',
+   'PYMODULE-1'),
+  ('gettext',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\gettext.py',
+   'PYMODULE-1'),
+  ('glob',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\glob.py',
+   'PYMODULE-1'),
+  ('gzip',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\gzip.py',
+   'PYMODULE-1'),
+  ('hashlib',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\hashlib.py',
+   'PYMODULE-1'),
+  ('hmac',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\hmac.py',
+   'PYMODULE-1'),
+  ('importlib',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\__init__.py',
+   'PYMODULE-1'),
+  ('importlib._abc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\_abc.py',
+   'PYMODULE-1'),
+  ('importlib._bootstrap',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\_bootstrap.py',
+   'PYMODULE-1'),
+  ('importlib._bootstrap_external',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\_bootstrap_external.py',
+   'PYMODULE-1'),
+  ('importlib.abc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\abc.py',
+   'PYMODULE-1'),
+  ('importlib.machinery',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\machinery.py',
+   'PYMODULE-1'),
+  ('importlib.metadata',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\__init__.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._adapters',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_adapters.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._collections',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_collections.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._functools',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_functools.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._itertools',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_itertools.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._meta',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_meta.py',
+   'PYMODULE-1'),
+  ('importlib.metadata._text',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\metadata\\_text.py',
+   'PYMODULE-1'),
+  ('importlib.readers',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\readers.py',
+   'PYMODULE-1'),
+  ('importlib.resources',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\__init__.py',
+   'PYMODULE-1'),
+  ('importlib.resources._adapters',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\_adapters.py',
+   'PYMODULE-1'),
+  ('importlib.resources._common',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\_common.py',
+   'PYMODULE-1'),
+  ('importlib.resources._functional',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\_functional.py',
+   'PYMODULE-1'),
+  ('importlib.resources._itertools',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\_itertools.py',
+   'PYMODULE-1'),
+  ('importlib.resources.abc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\abc.py',
+   'PYMODULE-1'),
+  ('importlib.resources.readers',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\resources\\readers.py',
+   'PYMODULE-1'),
+  ('importlib.util',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\importlib\\util.py',
+   'PYMODULE-1'),
+  ('inspect',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\inspect.py',
+   'PYMODULE-1'),
+  ('json',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\json\\__init__.py',
+   'PYMODULE-1'),
+  ('json.decoder',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\json\\decoder.py',
+   'PYMODULE-1'),
+  ('json.encoder',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\json\\encoder.py',
+   'PYMODULE-1'),
+  ('json.scanner',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\json\\scanner.py',
+   'PYMODULE-1'),
+  ('logging',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\logging\\__init__.py',
+   'PYMODULE-1'),
+  ('logging.handlers',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\logging\\handlers.py',
+   'PYMODULE-1'),
+  ('lzma',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\lzma.py',
+   'PYMODULE-1'),
+  ('main_window', 'D:\\VS CODE\\InfoFile\\main_window.py', 'PYMODULE-1'),
+  ('metadata', 'D:\\VS CODE\\InfoFile\\metadata.py', 'PYMODULE-1'),
+  ('numbers',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\numbers.py',
+   'PYMODULE-1'),
+  ('opcode',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\opcode.py',
+   'PYMODULE-1'),
+  ('pathlib',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\__init__.py',
+   'PYMODULE-1'),
+  ('pathlib._abc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_abc.py',
+   'PYMODULE-1'),
+  ('pathlib._local',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_local.py',
+   'PYMODULE-1'),
+  ('pickle',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pickle.py',
+   'PYMODULE-1'),
+  ('pkgutil',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pkgutil.py',
+   'PYMODULE-1'),
+  ('pprint',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pprint.py',
+   'PYMODULE-1'),
+  ('py_compile',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\py_compile.py',
+   'PYMODULE-1'),
+  ('queue',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\queue.py',
+   'PYMODULE-1'),
+  ('quopri',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\quopri.py',
+   'PYMODULE-1'),
+  ('random',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\random.py',
+   'PYMODULE-1'),
+  ('security', 'D:\\VS CODE\\InfoFile\\security.py', 'PYMODULE-1'),
+  ('selectors',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\selectors.py',
+   'PYMODULE-1'),
+  ('shell_extension',
+   'D:\\VS CODE\\InfoFile\\shell_extension.py',
+   'PYMODULE-1'),
+  ('shutil',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\shutil.py',
+   'PYMODULE-1'),
+  ('signal',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\signal.py',
+   'PYMODULE-1'),
+  ('smtplib',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\smtplib.py',
+   'PYMODULE-1'),
+  ('socket',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\socket.py',
+   'PYMODULE-1'),
+  ('sqlite3',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\sqlite3\\__init__.py',
+   'PYMODULE-1'),
+  ('sqlite3.__main__',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\sqlite3\\__main__.py',
+   'PYMODULE-1'),
+  ('sqlite3.dbapi2',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\sqlite3\\dbapi2.py',
+   'PYMODULE-1'),
+  ('sqlite3.dump',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\sqlite3\\dump.py',
+   'PYMODULE-1'),
+  ('ssl',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\ssl.py',
+   'PYMODULE-1'),
+  ('startup', 'D:\\VS CODE\\InfoFile\\startup.py', 'PYMODULE-1'),
+  ('statistics',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\statistics.py',
+   'PYMODULE-1'),
+  ('string',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\string.py',
+   'PYMODULE-1'),
+  ('stringprep',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\stringprep.py',
+   'PYMODULE-1'),
+  ('subprocess',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\subprocess.py',
+   'PYMODULE-1'),
+  ('sysconfig',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\sysconfig\\__init__.py',
+   'PYMODULE-1'),
+  ('tarfile',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\tarfile.py',
+   'PYMODULE-1'),
+  ('tempfile',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\tempfile.py',
+   'PYMODULE-1'),
+  ('textwrap',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\textwrap.py',
+   'PYMODULE-1'),
+  ('threading',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\threading.py',
+   'PYMODULE-1'),
+  ('token',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\token.py',
+   'PYMODULE-1'),
+  ('tokenize',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\tokenize.py',
+   'PYMODULE-1'),
+  ('tracemalloc',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\tracemalloc.py',
+   'PYMODULE-1'),
+  ('tray', 'D:\\VS CODE\\InfoFile\\tray.py', 'PYMODULE-1'),
+  ('typing',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\typing.py',
+   'PYMODULE-1'),
+  ('win32con',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\win32\\lib\\win32con.py',
+   'PYMODULE-1'),
+  ('win32evtlogutil',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\win32\\lib\\win32evtlogutil.py',
+   'PYMODULE-1'),
+  ('winerror',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\win32\\lib\\winerror.py',
+   'PYMODULE-1'),
+  ('zipfile',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\zipfile\\__init__.py',
+   'PYMODULE-1'),
+  ('zipfile._path',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\zipfile\\_path\\__init__.py',
+   'PYMODULE-1'),
+  ('zipfile._path.glob',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\zipfile\\_path\\glob.py',
+   'PYMODULE-1'),
+  ('zipimport',
+   'C:\\Users\\Luis '
+   'Lopera\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\zipimport.py',
+   'PYMODULE-1')])

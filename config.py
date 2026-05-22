@@ -1,5 +1,5 @@
 """
-config.py — Configuración central de InfoFile
+config.py — Configuración central de TagFil
 
 Todos los módulos importan desde aquí.
 Nunca hardcodees rutas, versiones o constantes en otros archivos.
@@ -18,7 +18,7 @@ from pathlib import Path
 # Versión
 # ──────────────────────────────────────────────
 
-APP_NAME      = "InfoFile"
+APP_NAME      = "TagFil"
 APP_VERSION   = "0.1.0"
 APP_AUTHOR    = "Tu nombre"
 
@@ -134,7 +134,7 @@ SEARCH_MAX_RESULTS = 200    # límite de resultados mostrados en la UI
 # ──────────────────────────────────────────────
 
 # Clave raíz del menú contextual en el registro
-REGISTRY_KEY = r"*\shell\InfoFile"
+REGISTRY_KEY = r"*\shell\TagFil"
 REGISTRY_LABEL = "InfoFile"
 
 

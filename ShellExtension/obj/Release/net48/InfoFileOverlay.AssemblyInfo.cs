@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("InfoFileOverlay")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6190864344424a15a68495073b938eb310f46f07")]
 [assembly: System.Reflection.AssemblyProductAttribute("InfoFileOverlay")]
 [assembly: System.Reflection.AssemblyTitleAttribute("InfoFileOverlay")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

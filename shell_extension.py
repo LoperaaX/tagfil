@@ -3,7 +3,7 @@ shell_extension.py — Compila y registra la Shell Extension de InfoFile
 
 Automatiza todo el proceso:
   1. Encuentra MSBuild en Visual Studio
-  2. Compila InfoFileOverlay.dll
+  2. Compila TagFilOverlay.dll
   3. Crea el ícono overlay .ico
   4. Registra la DLL con regsvr32
   5. Registra la clave ShellIconOverlayIdentifiers
@@ -38,9 +38,9 @@ logger = get_logger(__name__)
 _CLSID         = "{A4E23B0E-9B4D-4E6C-A12F-7C6D8E9F0A1B}"
 _OVERLAY_NAME  = f"  {APP_NAME}HasDescription"   # espacios = prioridad alta
 _PROJECT_DIR   = Path(__file__).parent / "ShellExtension"
-_CSPROJ        = _PROJECT_DIR / "InfoFileOverlay.csproj"
-_DLL_SRC       = _PROJECT_DIR / "bin" / "Release" / "InfoFileOverlay.dll"
-_DLL_DEST      = APP_DIR / "InfoFileOverlay.dll"
+_CSPROJ        = _PROJECT_DIR / "TagFilOverlay.csproj"
+_DLL_SRC       = _PROJECT_DIR / "bin" / "Release" / "TagFilOverlay.dll"
+_DLL_DEST      = APP_DIR / "TagFilOverlay.dll"
 _ICON_PATH     = APP_DIR / "overlay.ico"
 
 # Claves de registro
@@ -176,7 +176,7 @@ def _create_icon() -> bool:
 # ──────────────────────────────────────────────
 
 def build() -> bool:
-    """Compila InfoFileOverlay.dll con MSBuild."""
+    """Compila TagFilOverlay.dll con MSBuild."""
     msbuild = _find_msbuild()
     if not msbuild:
         print("ERR  MSBuild no encontrado. Asegúrate de tener Visual Studio instalado.")
@@ -243,8 +243,8 @@ def _register_dll() -> bool:
             winreg.HKEY_LOCAL_MACHINE, _INPROC_KEY, 0, winreg.KEY_WRITE
         ) as key:
             winreg.SetValueEx(key, "",              0, winreg.REG_SZ, "mscoree.dll")
-            winreg.SetValueEx(key, "Class",         0, winreg.REG_SZ, "InfoFileOverlay.InfoFileOverlayHandler")
-            winreg.SetValueEx(key, "Assembly",      0, winreg.REG_SZ, "InfoFileOverlay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null")
+            winreg.SetValueEx(key, "Class",         0, winreg.REG_SZ, "TagFilOverlay.TagFilOverlayHandler")
+            winreg.SetValueEx(key, "Assembly",      0, winreg.REG_SZ, "TagFilOverlay, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null")
             winreg.SetValueEx(key, "RuntimeVersion",0, winreg.REG_SZ, "v4.0.30319")
             winreg.SetValueEx(key, "ThreadingModel",0, winreg.REG_SZ, "Both")
             winreg.SetValueEx(key, "CodeBase",      0, winreg.REG_SZ, _DLL_DEST.as_uri())

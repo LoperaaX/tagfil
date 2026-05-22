@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\VS CODE\\InfoFile\\ShellExtension\\InfoFileOverlay.csproj": {}
+    "D:\\VS CODE\\TagFil\\ShellExtension\\InfoFileOverlay.csproj": {}
   },
   "projects": {
-    "D:\\VS CODE\\InfoFile\\ShellExtension\\InfoFileOverlay.csproj": {
+    "D:\\VS CODE\\TagFil\\ShellExtension\\InfoFileOverlay.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\VS CODE\\InfoFile\\ShellExtension\\InfoFileOverlay.csproj",
+        "projectUniqueName": "D:\\VS CODE\\TagFil\\ShellExtension\\InfoFileOverlay.csproj",
         "projectName": "InfoFileOverlay",
-        "projectPath": "D:\\VS CODE\\InfoFile\\ShellExtension\\InfoFileOverlay.csproj",
+        "projectPath": "D:\\VS CODE\\TagFil\\ShellExtension\\InfoFileOverlay.csproj",
         "packagesPath": "C:\\Users\\Luis Lopera\\.nuget\\packages\\",
-        "outputPath": "D:\\VS CODE\\InfoFile\\ShellExtension\\obj\\",
+        "outputPath": "D:\\VS CODE\\TagFil\\ShellExtension\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Luis Lopera\\AppData\\Roaming\\NuGet\\NuGet.Config"

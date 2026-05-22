@@ -1,5 +1,5 @@
 """
-startup.py — Inicio automático de InfoFile con Windows
+startup.py — Inicio automático de TagFil con Windows
 
 Registra o elimina InfoFile en el registro de Windows para que
 arranque automáticamente al iniciar sesión.

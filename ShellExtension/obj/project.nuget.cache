@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "T1MGzv4Y/yg=",
+  "dgSpecHash": "Jk73CoIML/0=",
   "success": true,
-  "projectFilePath": "D:\\VS CODE\\InfoFile\\ShellExtension\\InfoFileOverlay.csproj",
+  "projectFilePath": "D:\\VS CODE\\TagFil\\ShellExtension\\InfoFileOverlay.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Luis Lopera\\.nuget\\packages\\entityframework\\6.4.4\\entityframework.6.4.4.nupkg.sha512",
     "C:\\Users\\Luis Lopera\\.nuget\\packages\\stub.system.data.sqlite.core.netframework\\1.0.119\\stub.system.data.sqlite.core.netframework.1.0.119.nupkg.sha512",
