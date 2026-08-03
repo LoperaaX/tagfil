@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.tmp
+
+# PyInstaller
+build/
+dist/
+*.manifest
+*.spec.bak
+
+# .NET / shell extension build output
+bin/
+obj/
+ShellExtension/bin/
+ShellExtension/obj/
+*.pdb
+*.cache
+*.user
+*.suo
+.vs/
+
+# OS / editor
+desktop.ini
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+

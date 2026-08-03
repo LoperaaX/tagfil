@@ -17,7 +17,7 @@ from pathlib import Path
 from PyQt6.QtCore    import Qt
 from PyQt6.QtGui     import QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QFrame, QHBoxLayout, QLabel,
+    QApplication, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPushButton, QScrollArea,
     QSizePolicy, QTextEdit, QVBoxLayout, QWidget,
 )
@@ -110,6 +110,41 @@ QLineEdit#tag_input {
 }
 QLineEdit#tag_input:focus {
     outline: none;
+}
+
+QLineEdit#meta_input {
+    background-color: #ffffff;
+    color: #1a1a1a;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 7px 9px;
+    font-size: 12px;
+    font-family: "Segoe UI", sans-serif;
+}
+QLineEdit#meta_input:focus {
+    border: 1px solid #7c3aed;
+}
+QLineEdit#suggested_name {
+    background-color: #fafafa;
+    color: #1a1a1a;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 8px 9px;
+    font-size: 12px;
+    font-family: "Consolas", "Segoe UI", monospace;
+}
+QPushButton#btn_secondary {
+    background-color: #ffffff;
+    color: #1a1a1a;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: "Segoe UI", sans-serif;
+}
+QPushButton#btn_secondary:hover {
+    border-color: #7c3aed;
+    color: #5b21b6;
 }
 
 /* Chip de etiqueta */
@@ -325,8 +360,8 @@ class DescriptionDialog(QDialog):
     def _setup_ui(self) -> None:
         # Sin marco nativo — usamos barra personalizada
         self.setWindowTitle(f"{APP_NAME} - Agregar descripción")
-        self.setMinimumWidth(340)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(520)
+        self.setMaximumWidth(580)
         self.setWindowFlags(
             Qt.WindowType.Dialog |
             Qt.WindowType.WindowCloseButtonHint
@@ -359,11 +394,18 @@ class DescriptionDialog(QDialog):
 
         path      = Path(self.file_path)
         file_name = path.name
-        lbl_file  = QLabel(file_name)
-        lbl_file.setObjectName("file_name")
-        lbl_file.setWordWrap(True)
-        lbl_file.setToolTip(self.file_path)
-        layout.addWidget(lbl_file)
+        self._file_label = QLabel(file_name)
+        self._file_label.setObjectName("file_name")
+        self._file_label.setWordWrap(True)
+        self._file_label.setToolTip(self.file_path)
+        layout.addWidget(self._file_label)
+        layout.addSpacing(20)
+
+        lbl_short = QLabel("Nombre corto:")
+        lbl_short.setObjectName("section_label")
+        layout.addWidget(lbl_short)
+        layout.addSpacing(8)
+        layout.addWidget(self._build_short_name_box())
         layout.addSpacing(20)
 
         # ── Sección Descripción ──
@@ -398,6 +440,65 @@ class DescriptionDialog(QDialog):
 
         return body
 
+    def _build_short_name_box(self) -> QWidget:
+        box = QWidget()
+        grid = QGridLayout(box)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(8)
+
+        self._type_input = self._meta_input("factura")
+        self._entity_input = self._meta_input("ACME")
+        self._date_input = self._meta_input("2026-06-15")
+        self._seq_input = self._meta_input("14")
+        self._qualifier_input = self._meta_input("opcional")
+
+        grid.addWidget(QLabel("Tipo"), 0, 0)
+        grid.addWidget(QLabel("Entidad"), 0, 1)
+        grid.addWidget(QLabel("Fecha/año"), 0, 2)
+        grid.addWidget(QLabel("Consec."), 0, 3)
+        grid.addWidget(self._type_input, 1, 0)
+        grid.addWidget(self._entity_input, 1, 1)
+        grid.addWidget(self._date_input, 1, 2)
+        grid.addWidget(self._seq_input, 1, 3)
+
+        grid.addWidget(QLabel("Calificador"), 2, 0)
+        grid.addWidget(self._qualifier_input, 3, 0, 1, 2)
+
+        self._suggested_name = QLineEdit()
+        self._suggested_name.setObjectName("suggested_name")
+        self._suggested_name.setReadOnly(True)
+        self._suggested_name.setPlaceholderText("Genera una sugerencia...")
+        grid.addWidget(self._suggested_name, 3, 2, 1, 2)
+
+        btn_suggest = QPushButton("Sugerir")
+        btn_suggest.setObjectName("btn_secondary")
+        btn_suggest.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_suggest.clicked.connect(self._on_suggest_name)
+
+        btn_rename = QPushButton("Renombrar")
+        btn_rename.setObjectName("btn_secondary")
+        btn_rename.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_rename.clicked.connect(self._on_rename_file)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(btn_suggest)
+        row.addWidget(btn_rename)
+        row.addStretch()
+        grid.addLayout(row, 4, 0, 1, 4)
+
+        for label in box.findChildren(QLabel):
+            label.setStyleSheet("color: #555555; font-size: 11px; background: transparent;")
+
+        return box
+
+    def _meta_input(self, placeholder: str) -> QLineEdit:
+        inp = QLineEdit()
+        inp.setObjectName("meta_input")
+        inp.setPlaceholderText(placeholder)
+        return inp
+
     def _build_buttons(self) -> QWidget:
         w = QWidget()
         row = QHBoxLayout(w)
@@ -431,6 +532,13 @@ class DescriptionDialog(QDialog):
                 self._existing = existing
                 self._desc_edit.setPlainText(existing["description"])
                 self._tags_box.set_tags(existing["tags"])
+                self._type_input.setText(existing.get("document_type") or "")
+                self._entity_input.setText(existing.get("entity") or "")
+                self._date_input.setText(existing.get("document_date") or "")
+                seq = existing.get("sequence_number")
+                self._seq_input.setText("" if seq in (None, "") else str(seq))
+                self._qualifier_input.setText(existing.get("qualifier") or "")
+                self._suggested_name.setText(existing.get("short_name") or "")
                 # Cambiar título si ya tiene descripción
                 self.setWindowTitle(f"{APP_NAME} - Editar descripción")
         except Exception as e:
@@ -439,6 +547,7 @@ class DescriptionDialog(QDialog):
     def _on_save(self) -> None:
         desc = self._desc_edit.toPlainText().strip()
         tags = self._tags_box.get_tags()
+        seq_text = self._seq_input.text().strip()
 
         if not desc and not tags:
             QMessageBox.warning(
@@ -449,12 +558,88 @@ class DescriptionDialog(QDialog):
             return
 
         try:
-            db.upsert_file(path=self.file_path, description=desc, tags=tags)
+            sequence_number = int(seq_text) if seq_text else None
+            db.upsert_file(
+                path=self.file_path,
+                description=desc,
+                tags=tags,
+                short_name=self._suggested_name.text().strip(),
+                document_type=self._type_input.text().strip(),
+                entity=self._entity_input.text().strip(),
+                document_date=self._date_input.text().strip(),
+                sequence_number=sequence_number,
+                qualifier=self._qualifier_input.text().strip(),
+                provider="local",
+            )
             logger.info(f"Guardado: {self.file_path}")
             self.accept()
+        except ValueError as e:
+            QMessageBox.warning(self, "Datos inválidos", str(e))
         except Exception as e:
             logger.exception(f"Error guardando: {e}")
             QMessageBox.critical(self, "Error", f"No se pudo guardar:\n{e}")
+
+    def _on_suggest_name(self) -> str | None:
+        from core.naming import suggest_short_path
+
+        try:
+            seq_text = self._seq_input.text().strip()
+            if not seq_text:
+                raise ValueError("Ingresa un consecutivo.")
+            suggested = suggest_short_path(
+                original_path=self.file_path,
+                document_type=self._type_input.text().strip(),
+                entity=self._entity_input.text().strip(),
+                document_date=self._date_input.text().strip() or None,
+                sequence=int(seq_text),
+                qualifier=self._qualifier_input.text().strip(),
+            )
+        except ValueError as e:
+            QMessageBox.warning(self, "Nombre corto", str(e))
+            return None
+
+        self._suggested_name.setText(suggested.name)
+        return suggested.name
+
+    def _on_rename_file(self) -> None:
+        name = self._suggested_name.text().strip() or self._on_suggest_name()
+        if not name:
+            return
+
+        current = Path(self.file_path)
+        target = current.with_name(name)
+
+        if current.name == target.name:
+            QMessageBox.information(self, "Renombrar", "El archivo ya tiene ese nombre.")
+            return
+        if not current.exists():
+            QMessageBox.warning(self, "Renombrar", "El archivo no existe en disco.")
+            return
+        if target.exists():
+            QMessageBox.warning(self, "Renombrar", f"Ya existe un archivo con ese nombre:\n{target}")
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Renombrar archivo",
+            f"Renombrar:\n{current.name}\n\na:\n{target.name}",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            current.rename(target)
+            db.update_file_path(self.file_path, str(target))
+            self.file_path = str(target.resolve(strict=False))
+            self._file_label.setText(target.name)
+            self._file_label.setToolTip(self.file_path)
+            logger.info(f"Renombrado: {current} -> {target}")
+        except Exception as e:
+            logger.exception(f"Error renombrando archivo: {e}")
+            QMessageBox.critical(self, "Error", f"No se pudo renombrar:\n{e}")
+
+
+MetadataDialog = DescriptionDialog
 
 
 # ──────────────────────────────────────────────

@@ -33,14 +33,19 @@ if sys.platform == "win32":
 else:
     _base = Path.home()
 
-APP_DIR    = _base / APP_NAME          # %APPDATA%\InfoFile
-DB_PATH    = APP_DIR / "infofile.db"
+APP_DIR        = _base / APP_NAME          # %APPDATA%\TagFil
+DB_PATH        = APP_DIR / "tagfil.db"
+LEGACY_DB_PATH = APP_DIR / "infofile.db"
 LOG_DIR    = APP_DIR / "logs"
 ASSETS_DIR = Path(__file__).parent / "assets"   # relativo al proyecto
 
 # Crear directorios al importar (idempotente)
 APP_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+if LEGACY_DB_PATH.exists() and not DB_PATH.exists():
+    import shutil
+    shutil.copy2(LEGACY_DB_PATH, DB_PATH)
 
 
 # ──────────────────────────────────────────────
@@ -49,8 +54,8 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Nivel según variable de entorno (útil para desarrollo)
 # Ejemplo: set INFOFILE_LOG=DEBUG  →  activa logs de depuración
-_LOG_LEVEL = os.getenv("INFOFILE_LOG", "INFO").upper()
-_LOG_FILE  = LOG_DIR / "infofile.log"
+_LOG_LEVEL = os.getenv("TAGFIL_LOG", os.getenv("INFOFILE_LOG", "INFO")).upper()
+_LOG_FILE  = LOG_DIR / "tagfil.log"
 
 # Formato: timestamp [NIVEL] módulo: mensaje
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -86,7 +91,7 @@ def _setup_logging() -> None:
     root.addHandler(file_handler)
 
     # Handler de consola (solo si se pide explícitamente o en desarrollo)
-    if os.getenv("INFOFILE_LOG"):
+    if os.getenv("TAGFIL_LOG") or os.getenv("INFOFILE_LOG"):
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(logging.Formatter(_LOG_FORMAT, _DATE_FORMAT))
         root.addHandler(console_handler)
@@ -135,7 +140,7 @@ SEARCH_MAX_RESULTS = 200    # límite de resultados mostrados en la UI
 
 # Clave raíz del menú contextual en el registro
 REGISTRY_KEY = r"*\shell\TagFil"
-REGISTRY_LABEL = "InfoFile"
+REGISTRY_LABEL = "TagFil"
 
 
 # ──────────────────────────────────────────────

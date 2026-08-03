@@ -81,7 +81,7 @@ class _MainWindowWrapped:
 
     @staticmethod
     def create(on_close_cb) -> QMainWindow:
-        from main_window import MainWindow
+        from tagfil.main_window import MainWindow
 
         class _W(MainWindow):
             def closeEvent(self, event):

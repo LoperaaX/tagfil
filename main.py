@@ -16,6 +16,7 @@ Modos de uso:
          py main.py get "C:\archivo.pdf"
          py main.py delete "C:\archivo.pdf"
          py main.py stats
+         py main.py suggest-name "C:\archivo.pdf" --type factura --entity ACME --date 2026-06-15 --seq 14
          py main.py menu --install
          py main.py menu --uninstall
          py main.py menu --status
@@ -213,6 +214,26 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def cmd_suggest_name(args) -> int:
+    from core.naming import suggest_short_path
+
+    try:
+        suggested = suggest_short_path(
+            original_path=args.path,
+            document_type=args.type,
+            entity=args.entity,
+            document_date=args.date,
+            sequence=args.seq,
+            qualifier=args.qualifier or "",
+        )
+    except ValueError as e:
+        _err(str(e))
+        return 1
+
+    print(str(suggested.name if args.name_only else suggested))
+    return 0
+
+
 def cmd_menu(args) -> int:
     from context_menu import install, uninstall, is_installed, _COMMAND
     if args.install:
@@ -229,6 +250,31 @@ def cmd_menu(args) -> int:
         print(f"  Comando : {_COMMAND}")
         return 0
     return 0
+
+
+def cmd_security_check(args) -> int:
+    import database as db
+    from security import run_security_audit
+
+    db.init_db()
+    findings = run_security_audit()
+    status_label = {
+        "ok": "OK ",
+        "info": "INFO",
+        "warn": "WARN",
+        "error": "ERR",
+    }
+
+    print(f"\n  {APP_NAME} — Auditoría de seguridad")
+    print(f"  {'-' * 38}")
+    worst = 0
+    weights = {"ok": 0, "info": 0, "warn": 1, "error": 2}
+    for item in findings:
+        status = item["status"]
+        worst = max(worst, weights.get(status, 1))
+        print(f"  {status_label.get(status, status.upper()):<4} {item['check']:<18} {item['detail']}")
+    print()
+    return 1 if worst >= 2 else 0
 
 
 # ──────────────────────────────────────────────
@@ -269,12 +315,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_stats = sub.add_parser("stats", help="Estadísticas de la base de datos")
     p_stats.set_defaults(func=cmd_stats)
 
+    p_suggest = sub.add_parser("suggest-name", help="Sugerir nombre corto para un archivo")
+    p_suggest.add_argument("path", metavar="RUTA")
+    p_suggest.add_argument("--type", required=True, metavar="TIPO", help="Tipo documental: factura, contrato, informe, etc.")
+    p_suggest.add_argument("--entity", required=True, metavar="ENTIDAD", help="Cliente, proveedor, area o proyecto")
+    p_suggest.add_argument("--seq", required=True, type=int, metavar="N", help="Consecutivo del documento")
+    p_suggest.add_argument("--date", metavar="FECHA", help="Fecha o ano del documento")
+    p_suggest.add_argument("--qualifier", metavar="TEXTO", default="", help="Texto corto opcional, por ejemplo area o sede")
+    p_suggest.add_argument("--name-only", action="store_true", help="Mostrar solo el nombre, sin carpeta")
+    p_suggest.set_defaults(func=cmd_suggest_name)
+
     p_menu = sub.add_parser("menu", help="Gestionar el menú contextual de Windows")
     mg = p_menu.add_mutually_exclusive_group(required=True)
     mg.add_argument("--install",   action="store_true")
     mg.add_argument("--uninstall", action="store_true")
     mg.add_argument("--status",    action="store_true")
     p_menu.set_defaults(func=cmd_menu)
+
+    p_sec = sub.add_parser("security-check", help="Auditoría rápida de seguridad")
+    p_sec.set_defaults(func=cmd_security_check)
 
     return parser
 

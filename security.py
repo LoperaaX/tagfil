@@ -22,7 +22,7 @@ import hashlib
 import os
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from config import APP_NAME, DB_PATH, APP_DIR, get_logger
 
@@ -177,9 +177,22 @@ def validate_path(path: str) -> tuple[bool, str]:
 
     path = path.strip()
 
+    if any((ord(c) < 32 or ord(c) == 127) for c in path):
+        return False, "La ruta contiene caracteres de control no permitidos"
+
     # Verificar longitud máxima
     if len(path) > 32767:   # límite extendido de Windows
         return False, f"Ruta demasiado larga ({len(path)} caracteres)"
+
+    if sys.platform == "win32":
+        win_path = PureWindowsPath(path)
+        drive = win_path.drive
+        remainder = path[len(drive):] if drive else path
+        if ":" in remainder:
+            return False, "La ruta no puede incluir Alternate Data Streams (:stream)"
+
+        if path.startswith(("\\\\.\\", "\\\\?\\")):
+            return False, "Las rutas de dispositivo no están permitidas"
 
     # Verificar caracteres inválidos
     invalid = _INVALID_PATH_CHARS.intersection(set(path))
@@ -298,6 +311,8 @@ def sanitize_tags(tags: list[str]) -> list[str]:
 # ──────────────────────────────────────────────
 
 _HASH_FILE = APP_DIR / "infofile_backup.sha256"
+_ENCRYPTED_BACKUP = APP_DIR / "infofile_backup.db.dpapi"
+_ENCRYPT_BACKUP_ENV = "TAGFIL_ENCRYPT_BACKUP"
 
 
 def save_backup_hash() -> bool:
@@ -366,6 +381,138 @@ def verify_backup_hash() -> tuple[bool, str]:
     except Exception as e:
         logger.exception(f"Error verificando hash del backup: {e}")
         return False, f"Error al verificar: {e}"
+
+
+# ──────────────────────────────────────────────
+# Capa 3 — Backup cifrado opcional
+# ──────────────────────────────────────────────
+
+def encrypted_backups_enabled() -> bool:
+    """Retorna True si el backup cifrado con DPAPI está activado."""
+    return os.getenv(_ENCRYPT_BACKUP_ENV, "").strip().lower() in {
+        "1", "true", "yes", "on", "si", "sí",
+    }
+
+
+def encrypted_backup_path() -> Path:
+    """Ruta del backup cifrado opcional."""
+    return _ENCRYPTED_BACKUP
+
+
+def _dpapi_protect(data: bytes) -> bytes:
+    """Cifra bytes con Windows DPAPI para el usuario actual."""
+    if sys.platform != "win32":
+        raise OSError("DPAPI solo está disponible en Windows")
+
+    import ctypes.wintypes as wintypes
+
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [
+            ("cbData", wintypes.DWORD),
+            ("pbData", ctypes.POINTER(ctypes.c_byte)),
+        ]
+
+    in_buffer = ctypes.create_string_buffer(data)
+    in_blob = DATA_BLOB(
+        len(data),
+        ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_byte)),
+    )
+    out_blob = DATA_BLOB()
+
+    ok = ctypes.windll.crypt32.CryptProtectData(
+        ctypes.byref(in_blob),
+        "TagFil backup",
+        None,
+        None,
+        None,
+        0,
+        ctypes.byref(out_blob),
+    )
+    if not ok:
+        raise OSError(ctypes.get_last_error())
+
+    try:
+        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
+    finally:
+        ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+
+
+def encrypt_backup_if_enabled() -> bool:
+    """
+    Crea un backup cifrado con DPAPI si TAGFIL_ENCRYPT_BACKUP está activo.
+    El archivo solo puede descifrarse con el mismo usuario de Windows.
+    """
+    if not encrypted_backups_enabled():
+        return False
+
+    backup_path = APP_DIR / "infofile_backup.db"
+    if not backup_path.exists():
+        return False
+
+    try:
+        encrypted = _dpapi_protect(backup_path.read_bytes())
+        _ENCRYPTED_BACKUP.write_bytes(encrypted)
+        logger.info(f"Backup cifrado creado: {_ENCRYPTED_BACKUP}")
+        return True
+    except Exception as e:
+        logger.warning(f"No se pudo crear backup cifrado: {e}")
+        return False
+
+
+# ──────────────────────────────────────────────
+# Capa 3 — Auditoría de seguridad
+# ──────────────────────────────────────────────
+
+def run_security_audit() -> list[dict]:
+    """Ejecuta verificaciones rápidas de seguridad y retorna hallazgos."""
+    findings = []
+
+    def add(status: str, check: str, detail: str) -> None:
+        findings.append({"status": status, "check": check, "detail": detail})
+
+    if DB_PATH.exists():
+        try:
+            import sqlite3
+            with sqlite3.connect(DB_PATH) as conn:
+                result = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            add("ok" if result == "ok" else "error", "database", result)
+        except Exception as e:
+            add("error", "database", f"No se pudo verificar: {e}")
+    else:
+        add("warn", "database", "La base de datos no existe todavía")
+
+    ok, msg = verify_backup_hash()
+    add("ok" if ok else "warn", "backup-hash", msg)
+
+    if encrypted_backups_enabled():
+        encrypted_exists = _ENCRYPTED_BACKUP.exists()
+        add(
+            "ok" if encrypted_exists else "warn",
+            "encrypted-backup",
+            str(_ENCRYPTED_BACKUP) if encrypted_exists else "Activado, pero aún no existe backup cifrado",
+        )
+    else:
+        add("info", "encrypted-backup", f"Desactivado. Actívalo con {_ENCRYPT_BACKUP_ENV}=1")
+
+    try:
+        test_path = APP_DIR / "audit-write.tmp"
+        test_path.write_text("ok", encoding="utf-8")
+        test_path.unlink(missing_ok=True)
+        add("ok", "app-dir", str(APP_DIR))
+    except Exception as e:
+        add("error", "app-dir", f"No se puede escribir en {APP_DIR}: {e}")
+
+    try:
+        import context_menu
+        add(
+            "ok" if context_menu.is_installed() else "info",
+            "context-menu",
+            "Instalado" if context_menu.is_installed() else "No instalado",
+        )
+    except Exception as e:
+        add("warn", "context-menu", f"No se pudo verificar: {e}")
+
+    return findings
 
 
 # ──────────────────────────────────────────────
