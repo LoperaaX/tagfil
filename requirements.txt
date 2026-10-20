@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# InfoFile — Dependencias
+# TagFil — Dependencias
 # ──────────────────────────────────────────────
 #
 # Instalar todo de una vez:
@@ -11,6 +11,7 @@
 
 # Interfaz gráfica (UI, tray, diálogos)
 PyQt6>=6.6.0
+pywin32>=306
 
 # No se necesitan dependencias externas adicionales:
 # - sqlite3    → incluido en Python (stdlib)
@@ -20,4 +21,3 @@ PyQt6>=6.6.0
 # - configparser → incluido en Python (stdlib)
 # - ctypes     → incluido en Python (stdlib)
 # - shutil     → incluido en Python (stdlib)
-

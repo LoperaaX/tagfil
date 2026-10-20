@@ -1,40 +1,46 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.python-version
+# Entornos virtuales
 .venv/
 venv/
 env/
 
-# Runtime data
-*.db
-*.db-shm
-*.db-wal
-*.log
-*.tmp
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# PyInstaller
+# Build / empaquetado (PyInstaller)
 build/
 dist/
-*.manifest
-*.spec.bak
 
-# .NET / shell extension build output
+# .NET (ShellExtension)
 bin/
 obj/
-ShellExtension/bin/
-ShellExtension/obj/
-*.pdb
-*.cache
 *.user
-*.suo
-.vs/
+*.lscache
 
-# OS / editor
-desktop.ini
-Thumbs.db
-.DS_Store
-.idea/
+# Datos de usuario y logs (no deben versionarse)
+*.db
+*.db-journal
+logs/
+
+# Archivos de prueba sueltos que no deberían estar en el repo
+*.pdf
+!docs/**/*.pdf
+
+# Configuración local / IDE
 .vscode/
+.idea/
+*.swp
 
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+   # Runtime data
+   *.db
+   *.db-shm
+   *.db-wal
+   *.log
+   *.tmp

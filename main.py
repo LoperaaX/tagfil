@@ -1,29 +1,35 @@
 """
-main.py — Punto de entrada de InfoFile
+main.py — Punto de entrada de TagFil
 
 Modos de uso:
 
   1. Sin argumentos → lanza el tray + ventana principal
-         py main.py
+         uv run python main.py
 
   2. Desde el menú contextual de Windows:
-         py main.py --file "C:\ruta\archivo.pdf"
+         uv run python main.py --file "C:\ruta\archivo.pdf"
      → Abre el diálogo de descripción para ese archivo.
 
   3. CLI para desarrollo y pruebas:
-         py main.py add "C:\archivo.pdf" --desc "Descripción" --tags usb seguridad
-         py main.py search "usb"
-         py main.py get "C:\archivo.pdf"
-         py main.py delete "C:\archivo.pdf"
-         py main.py stats
-         py main.py suggest-name "C:\archivo.pdf" --type factura --entity ACME --date 2026-06-15 --seq 14
-         py main.py menu --install
-         py main.py menu --uninstall
-         py main.py menu --status
+         uv run python main.py add "C:\archivo.pdf" --desc "Descripción" --tags usb seguridad
+         uv run python main.py search "usb"
+         uv run python main.py get "C:\archivo.pdf"
+         uv run python main.py delete "C:\archivo.pdf"
+         uv run python main.py stats
+         uv run python main.py suggest-name "C:\archivo.pdf" --type factura --entity ACME --date 2026-06-15 --seq 14
+         uv run python main.py menu --install
+         uv run python main.py menu --uninstall
+         uv run python main.py menu --status
 """
 
 import argparse
 import sys
+
+for s in (sys.stdout, sys.stderr):
+    try:
+        s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from config import get_logger, APP_NAME, APP_VERSION
 

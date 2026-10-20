@@ -1,14 +1,14 @@
 """
 startup.py — Inicio automático de TagFil con Windows
 
-Registra o elimina InfoFile en el registro de Windows para que
+Registra o elimina TagFil en el registro de Windows para que
 arranque automáticamente al iniciar sesión.
 
 Usa HKEY_CURRENT_USER — no requiere permisos de administrador.
 
 Clave del registro:
     HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-    InfoFile = "C:\...\py.exe" "C:\...\main.py"
+    TagFil = "C:\...\py.exe" "C:\...\main.py"
 
 Uso:
     from startup import enable, disable, is_enabled
@@ -52,7 +52,7 @@ def _get_command() -> str:
 
 def enable() -> bool:
     """
-    Registra InfoFile para arrancar con Windows.
+    Registra TagFil para arrancar con Windows.
     Retorna True si tuvo éxito.
     """
     try:
@@ -68,7 +68,7 @@ def enable() -> bool:
 
 def disable() -> bool:
     """
-    Elimina InfoFile del inicio automático de Windows.
+    Elimina TagFil del inicio automático de Windows.
     Retorna True si tuvo éxito (o si ya no estaba registrado).
     """
     try:
@@ -84,7 +84,7 @@ def disable() -> bool:
 
 
 def is_enabled() -> bool:
-    """Retorna True si InfoFile está registrado para arrancar con Windows."""
+    """Retorna True si TagFil está registrado para arrancar con Windows."""
     try:
         with winreg.OpenKey(_HIVE, _RUN_KEY, 0, winreg.KEY_READ) as key:
             winreg.QueryValueEx(key, _APP_KEY)

@@ -1,11 +1,11 @@
 """
-tray.py — Bandeja del sistema de InfoFile
+tray.py — Bandeja del sistema de TagFil
 
-Mantiene InfoFile corriendo en segundo plano con un ícono
+Mantiene TagFil corriendo en segundo plano con un ícono
 en la bandeja del sistema (system tray de Windows).
 
 Menú del tray:
-  - Abrir InfoFile
+  - Abrir TagFil
   - N archivos registrados  (solo lectura)
   - Instalar / Desinstalar menú contextual
   - Salir
@@ -42,7 +42,7 @@ logger = get_logger(__name__)
 def _make_tray_icon() -> QIcon:
     """
     Usa assets/icon.ico si existe.
-    Si no, genera un círculo morado con las iniciales 'IF'.
+    Si no, genera un círculo morado con las iniciales 'TF'.
     """
     if ICON_PATH.exists():
         return QIcon(str(ICON_PATH))
@@ -62,7 +62,7 @@ def _make_tray_icon() -> QIcon:
     painter.setFont(font)
     painter.setPen(QColor("#1e1e2e"))
     # Qt.AlignHCenter | Qt.AlignVCenter = 0x04 | 0x80 = 0x84
-    painter.drawText(px.rect(), 0x84, "IF")
+    painter.drawText(px.rect(), 0x84, "TF")
 
     painter.end()
     return QIcon(px)
@@ -227,7 +227,7 @@ class TrayApp:
             msg = "Inicio automático deshabilitado" if ok else "Error al deshabilitar"
         else:
             ok  = startup_enable()
-            msg = "InfoFile se iniciará con Windows" if ok else "Error al habilitar"
+            msg = "TagFil se iniciará con Windows" if ok else "Error al habilitar"
         self._update_startup_label()
         self._tray.showMessage(APP_NAME, msg, _make_tray_icon(), 3000)
         logger.info(msg)
@@ -264,10 +264,10 @@ class TrayApp:
 
     def show(self) -> None:
         self._tray.show()
-        logger.info("InfoFile iniciado en la bandeja del sistema")
+        logger.info("TagFil iniciado en la bandeja del sistema")
 
     def _quit(self) -> None:
-        logger.info("Cerrando InfoFile...")
+        logger.info("Cerrando TagFil...")
         try:
             db.optimize_db()
         except Exception:

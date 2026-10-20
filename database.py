@@ -1,5 +1,5 @@
 ﻿"""
-database.py — Capa de datos de InfoFile
+database.py — Capa de datos de TagFil
 
 Todas las rutas y el logger vienen de config.py.
 No hardcodees rutas aquí.
@@ -20,7 +20,7 @@ from config import APP_DIR, DB_PATH, get_logger
 # Configuración
 # ──────────────────────────────────────────────
 
-DB_BACKUP    = APP_DIR / "infofile_backup.db"
+DB_BACKUP    = APP_DIR / "tagfil_backup.db"
 LAST_BACKUP  = APP_DIR / "last_backup.txt"   # control de frecuencia de backup (#2)
 BACKUP_EVERY = 3600                           # segundos mínimos entre backups (1 hora)
 DB_SCHEMA_VERSION = 4
@@ -164,7 +164,7 @@ def _attempt_recovery() -> bool:
         logger.warning(f"No se pudo verificar hash del backup: {hash_err}")
 
     try:
-        corrupted = APP_DIR / "infofile_corrupted.db"
+        corrupted = APP_DIR / "tagfil_corrupted.db"
         if DB_PATH.exists():
             shutil.move(str(DB_PATH), str(corrupted))
         shutil.copy2(DB_BACKUP, DB_PATH)
@@ -488,6 +488,7 @@ def upsert_file(
     sequence_number: int | None = None,
     qualifier: str = "",
     provider: str = "local",
+    sync_metadata: bool | None = None,
 ) -> int:
     """Crea o actualiza metadatos de un archivo."""
     from security import validate_path, sanitize_description, sanitize_tags, save_backup_hash
@@ -591,11 +592,18 @@ def upsert_file(
             )
 
             # Sincronizar descripción con el Explorador de Windows
-            try:
-                from metadata import sync_from_db
-                sync_from_db(path, description)
-            except Exception as _meta_err:
-                logger.warning(f"metadata sync falló (no crítico): {_meta_err}")
+            if sync_metadata is None:
+                try:
+                    from tagfil.settings import get_settings
+                    sync_metadata = bool(get_settings().get("sync_explorer_metadata"))
+                except Exception:
+                    sync_metadata = True
+            if sync_metadata:
+                try:
+                    from metadata import sync_from_db
+                    sync_from_db(path, description)
+                except Exception as _meta_err:
+                    logger.warning(f"metadata sync falló (no crítico): {_meta_err}")
             return file_id
 
     except sqlite3.Error as e:

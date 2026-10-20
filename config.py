@@ -19,15 +19,15 @@ from pathlib import Path
 # ──────────────────────────────────────────────
 
 APP_NAME      = "TagFil"
-APP_VERSION   = "0.1.0"
-APP_AUTHOR    = "Tu nombre"
+APP_VERSION   = "0.2.0-dev"
+APP_AUTHOR    = "Luis Lopera"
 
 
 # ──────────────────────────────────────────────
 # Directorios
 # ──────────────────────────────────────────────
 
-# Raíz de datos: %APPDATA%\InfoFile en Windows, ~/.InfoFile en otros sistemas
+# Raíz de datos: %APPDATA%\TagFil en Windows, ~/.TagFil en otros sistemas
 if sys.platform == "win32":
     _base = Path(os.getenv("APPDATA", Path.home()))
 else:
@@ -53,7 +53,7 @@ if LEGACY_DB_PATH.exists() and not DB_PATH.exists():
 # ──────────────────────────────────────────────
 
 # Nivel según variable de entorno (útil para desarrollo)
-# Ejemplo: set INFOFILE_LOG=DEBUG  →  activa logs de depuración
+# Ejemplo: set TAGFIL_LOG=DEBUG  →  activa logs de depuración
 _LOG_LEVEL = os.getenv("TAGFIL_LOG", os.getenv("INFOFILE_LOG", "INFO")).upper()
 _LOG_FILE  = LOG_DIR / "tagfil.log"
 
@@ -66,7 +66,7 @@ def _setup_logging() -> None:
     """
     Configura logging una sola vez para toda la app.
     - Archivo rotativo: máx 1 MB, guarda 3 backups.
-    - Consola: solo en desarrollo (cuando INFOFILE_LOG está definido).
+    - Consola: solo en desarrollo (cuando TAGFIL_LOG está definido).
 
     Llamar solo desde main.py o al importar config por primera vez.
     """

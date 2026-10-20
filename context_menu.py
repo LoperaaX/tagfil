@@ -29,8 +29,8 @@ _HIVE = winreg.HKEY_CURRENT_USER
 
 # Claves para archivos (*) y carpetas (Directory)
 _SHELL_KEYS = [
-    r"Software\Classes\*\shell\InfoFile",           # cualquier archivo
-    r"Software\Classes\Directory\shell\InfoFile",   # carpetas
+    r"Software\Classes\*\shell\TagFil",           # cualquier archivo
+    r"Software\Classes\Directory\shell\TagFil",   # carpetas
 ]
 
 # Encuentra py.exe o python.exe funcional — evita el stub de WindowsApps
@@ -63,7 +63,7 @@ def _set_key(shell_key: str) -> None:
 
     Estructura que crea en el registro::
 
-        HKCU\\Software\\Classes\\*\\shell\\InfoFile
+        HKCU\\Software\\Classes\\*\\shell\\TagFil
             (Default)  = "Agregar / editar descripcion"
             Icon       = ruta\\al\\ejecutable
             \\command
@@ -113,7 +113,7 @@ def _key_exists(shell_key: str) -> bool:
 
 def install() -> bool:
     """
-    Registra InfoFile en el menú contextual de Windows
+    Registra TagFil en el menú contextual de Windows
     para archivos y carpetas.
 
     Retorna True si tuvo éxito, False si hubo algún error.
@@ -132,7 +132,7 @@ def install() -> bool:
 
 def uninstall() -> bool:
     """
-    Elimina InfoFile del menú contextual de Windows.
+    Elimina TagFil del menú contextual de Windows.
 
     Retorna True si tuvo éxito, False si hubo algún error.
     """

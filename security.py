@@ -1,5 +1,5 @@
 """
-security.py — Seguridad de InfoFile
+security.py — Seguridad de TagFil
 
 Implementa tres capas de seguridad:
 
@@ -310,9 +310,8 @@ def sanitize_tags(tags: list[str]) -> list[str]:
 # Capa 3 — Verificación de integridad del backup
 # ──────────────────────────────────────────────
 
-_HASH_FILE = APP_DIR / "infofile_backup.sha256"
-_ENCRYPTED_BACKUP = APP_DIR / "infofile_backup.db.dpapi"
-_ENCRYPT_BACKUP_ENV = "TAGFIL_ENCRYPT_BACKUP"
+_HASH_FILE = APP_DIR / "tagfil_backup.sha256"
+_ENCRYPTED_BACKUP = APP_DIR / "tagfil_backup.db.dpapi"
 
 
 def save_backup_hash() -> bool:
@@ -320,7 +319,7 @@ def save_backup_hash() -> bool:
     Calcula y guarda el hash SHA-256 del archivo de backup.
     Llamar inmediatamente después de crear el backup.
     """
-    backup_path = APP_DIR / "infofile_backup.db"
+    backup_path = APP_DIR / "tagfil_backup.db"
 
     if not backup_path.exists():
         return False
@@ -349,7 +348,7 @@ def verify_backup_hash() -> tuple[bool, str]:
     Retorna (True, "ok") si el backup está íntegro.
     Retorna (False, mensaje) si está corrupto o no hay hash guardado.
     """
-    backup_path = APP_DIR / "infofile_backup.db"
+    backup_path = APP_DIR / "tagfil_backup.db"
 
     if not backup_path.exists():
         return False, "Archivo de backup no encontrado"
@@ -389,9 +388,11 @@ def verify_backup_hash() -> tuple[bool, str]:
 
 def encrypted_backups_enabled() -> bool:
     """Retorna True si el backup cifrado con DPAPI está activado."""
-    return os.getenv(_ENCRYPT_BACKUP_ENV, "").strip().lower() in {
-        "1", "true", "yes", "on", "si", "sí",
-    }
+    try:
+        from tagfil.settings import get_settings
+        return bool(get_settings().get("encrypt_backup"))
+    except Exception:
+        return False
 
 
 def encrypted_backup_path() -> Path:
@@ -439,13 +440,13 @@ def _dpapi_protect(data: bytes) -> bytes:
 
 def encrypt_backup_if_enabled() -> bool:
     """
-    Crea un backup cifrado con DPAPI si TAGFIL_ENCRYPT_BACKUP está activo.
+    Crea un backup cifrado con DPAPI si la preferencia encrypt_backup está activa.
     El archivo solo puede descifrarse con el mismo usuario de Windows.
     """
     if not encrypted_backups_enabled():
         return False
 
-    backup_path = APP_DIR / "infofile_backup.db"
+    backup_path = APP_DIR / "tagfil_backup.db"
     if not backup_path.exists():
         return False
 
@@ -492,7 +493,7 @@ def run_security_audit() -> list[dict]:
             str(_ENCRYPTED_BACKUP) if encrypted_exists else "Activado, pero aún no existe backup cifrado",
         )
     else:
-        add("info", "encrypted-backup", f"Desactivado. Actívalo con {_ENCRYPT_BACKUP_ENV}=1")
+        add("info", "encrypted-backup", "Desactivado. Actívalo en Configuración.")
 
     try:
         test_path = APP_DIR / "audit-write.tmp"
