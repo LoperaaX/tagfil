@@ -117,6 +117,7 @@ class BusquedaPage(QWidget):
         super().__init__(parent)
         self._all_files: list[dict] = []
         self._worker: SearchWorker | None = None
+        self._retired_workers: list[SearchWorker] = []   # hilos cancelados que aún terminan
         self._search_id = 0
         self._active_ext: str | None = None
         self._sort_mode: str = "relevancia"   # relevancia | az | mas_usado
@@ -319,19 +320,42 @@ class BusquedaPage(QWidget):
 
     def _run_search(self):
         query = self._search_input.text().strip()
-        if self._worker and self._worker.isRunning():
+        if self._worker is not None:
+            # No se espera al hilo anterior (bloquearía la UI mientras se escribe):
+            # se cancela y sus resultados se descartan por search_id.
             self._worker.stop()
-            self._worker.quit()
-            self._worker.wait()
-            self._worker.deleteLater()
-            self._worker = None
+            self._retired_workers.append(self._worker)
         self._search_id += 1
         current_id = self._search_id
-        self._worker = SearchWorker(query)
-        self._worker.results_ready.connect(
+        worker = SearchWorker(query)
+        worker.results_ready.connect(
             lambda r, sid=current_id: self._on_results(r, sid)
         )
-        self._worker.start()
+        worker.error.connect(
+            lambda msg, sid=current_id: self._on_search_error(msg, sid)
+        )
+        worker.finished.connect(lambda w=worker: self._on_worker_finished(w))
+        self._worker = worker
+        worker.start()
+
+    def shutdown_workers(self, timeout_ms: int = 3000) -> None:
+        """Cancela y espera las búsquedas en curso antes de cerrar la app."""
+        for worker in [self._worker, *self._retired_workers]:
+            if worker is not None and worker.isRunning():
+                worker.stop()
+                worker.wait(timeout_ms)
+
+    def _on_worker_finished(self, worker):
+        if worker in self._retired_workers:
+            self._retired_workers.remove(worker)
+        if self._worker is worker:
+            self._worker = None
+        worker.deleteLater()
+
+    def _on_search_error(self, message, search_id):
+        if search_id != self._search_id:
+            return
+        self._count_lbl.setText("No se pudo completar la búsqueda")
 
     def _on_results(self, results, search_id):
         if search_id != self._search_id:

@@ -41,6 +41,16 @@ class MainWindow(QMainWindow):
         db.init_db()
         QTimer.singleShot(100, self._pages[0].refresh)
 
+    def shutdown_workers(self) -> None:
+        """Pide a cada página que detenga sus hilos (importación, búsqueda) antes de salir."""
+        for page in self._pages:
+            stop = getattr(page, "shutdown_workers", None)
+            if callable(stop):
+                try:
+                    stop()
+                except Exception:
+                    pass
+
     def _setup_window(self):
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(960, 600)

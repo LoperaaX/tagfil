@@ -10,11 +10,9 @@ Uso:
     from context_menu import install, uninstall, is_installed
 """
 
-import shutil
-import sys
 import winreg
-from pathlib import Path
 
+import launcher
 from config import get_logger, APP_NAME, REGISTRY_LABEL
 
 logger = get_logger(__name__)
@@ -33,24 +31,10 @@ _SHELL_KEYS = [
     r"Software\Classes\Directory\shell\TagFil",   # carpetas
 ]
 
-# Encuentra py.exe o python.exe funcional — evita el stub de WindowsApps
-# que no funciona cuando Windows llama al comando desde el Explorador.
-def _find_py() -> str:
-    # 1. py.exe (Python Launcher para Windows) — lo más confiable
-    py = shutil.which("py")
-    if py:
-        return py
-    # 2. python.exe real (descartando el stub de WindowsApps)
-    for candidate in [sys.executable]:
-        p = Path(candidate)
-        if p.exists() and "WindowsApps" not in str(p):
-            return str(p)
-    # 3. Último recurso
-    return sys.executable
-
-_PYTHON  = _find_py()
-_MAIN_PY = str(Path(__file__).parent / "main.py")
-_COMMAND = f'"{_PYTHON}" "{_MAIN_PY}" --file "%1"'
+# El comando se arma en launcher.py: funciona igual en desarrollo (pythonw del
+# entorno actual, sin ventana de consola) y en el .exe empaquetado.
+_PYTHON  = launcher.interpreter()
+_COMMAND = launcher.command('--file "%1"')
 
 
 # ──────────────────────────────────────────────
@@ -67,12 +51,12 @@ def _set_key(shell_key: str) -> None:
             (Default)  = "Agregar / editar descripcion"
             Icon       = ruta\\al\\ejecutable
             \\command
-                (Default) = "py.exe" "main.py" --file "%1"
+                (Default) = "<ejecutable>" ["main.py"] --file "%1"
     """
     # Clave principal — texto visible en el menú
     with winreg.CreateKeyEx(_HIVE, shell_key, 0, winreg.KEY_WRITE) as key:
         winreg.SetValueEx(key, "",     0, winreg.REG_SZ, REGISTRY_LABEL)
-        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, _PYTHON)
+        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, launcher.icon())
 
     # Subclave command — qué ejecutar al hacer clic
     cmd_key = shell_key + r"\command"

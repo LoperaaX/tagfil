@@ -1,4 +1,4 @@
-﻿"""
+"""
 database.py — Capa de datos de TagFil
 
 Todas las rutas y el logger vienen de config.py.
@@ -23,7 +23,75 @@ from config import APP_DIR, DB_PATH, get_logger
 DB_BACKUP    = APP_DIR / "tagfil_backup.db"
 LAST_BACKUP  = APP_DIR / "last_backup.txt"   # control de frecuencia de backup (#2)
 BACKUP_EVERY = 3600                           # segundos mínimos entre backups (1 hora)
-DB_SCHEMA_VERSION = 4
+BACKUP_KEEP  = 3                              # generaciones diarias previas que se conservan
+BACKUP_ROTATE_EVERY = 24 * 3600               # una generación nueva como máximo por día
+
+
+def _backup_generation(n: int) -> Path:
+    """Ruta de la generación n del backup (0 = más reciente)."""
+    if n == 0:
+        return DB_BACKUP
+    return DB_BACKUP.with_name(f"{DB_BACKUP.stem}.{n}{DB_BACKUP.suffix}")
+
+
+def _rotate_backups() -> None:
+    """Desplaza las generaciones (.2→.3, .1→.2, actual→.1) como máximo una vez al día."""
+    if not DB_BACKUP.exists():
+        return
+    # La fecha del backup principal cambia en cada copia (normalmente cada
+    # hora). Medirla impediría rotar durante el uso continuo de la aplicación.
+    generation = _backup_generation(1)
+    if generation.exists():
+        age = datetime.now(timezone.utc).timestamp() - generation.stat().st_mtime
+        if age < BACKUP_ROTATE_EVERY:
+            return
+    for n in range(BACKUP_KEEP, 1, -1):
+        older, newer = _backup_generation(n), _backup_generation(n - 1)
+        if newer.exists():
+            shutil.copy2(newer, older)
+    # La fecha de .1 registra la rotación, no la fecha de la copia original.
+    shutil.copyfile(DB_BACKUP, generation)
+    generation.touch()
+
+
+def _is_healthy_db(path: Path) -> bool:
+    """True si el archivo SQLite pasa integrity_check (sin abrir la DB real)."""
+    if not path.exists():
+        return False
+    conn = None
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        return conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    except sqlite3.Error:
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+def _snapshot_before_migration() -> None:
+    """Copia de seguridad previa a migrar el schema (las migraciones no son reversibles)."""
+    if not DB_PATH.exists():
+        return
+    src = dest = None
+    try:
+        src = sqlite3.connect(DB_PATH)
+        version = src.execute("PRAGMA user_version").fetchone()[0]
+        has_files = src.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='files'"
+        ).fetchone()
+        if version >= DB_SCHEMA_VERSION or not has_files:
+            return
+        target = APP_DIR / f"tagfil_pre_migracion_v{version}.db"
+        dest = sqlite3.connect(target)
+        src.backup(dest)
+        logger.info(f"Copia previa a la migración v{version}→v{DB_SCHEMA_VERSION}: {target}")
+    except sqlite3.Error as e:
+        logger.warning(f"No se pudo crear la copia previa a la migración: {e}")
+    finally:
+        if dest: dest.close()
+        if src:  src.close()
+DB_SCHEMA_VERSION = 5
 
 logger = get_logger(__name__)
 
@@ -76,10 +144,17 @@ def backup_db(force: bool = False) -> bool:
             except (ValueError, OSError):
                 pass   # si el archivo está corrupto, hacemos backup igual
 
+    # No sobrescribir el último backup bueno con un estado dañado
+    # (integrity_check normal no ve el FTS ni errores lógicos)
+    if not check_integrity() or not check_fts_integrity():
+        logger.error("Backup omitido: la DB actual no pasa las verificaciones; se conserva el anterior")
+        return False
+
     src  = None
     dest = None
 
     try:
+        _rotate_backups()
         src  = sqlite3.connect(DB_PATH)
 
         # WAL checkpoint antes del backup — garantiza que todos los datos
@@ -147,31 +222,48 @@ def check_integrity() -> bool:
 
 
 def _attempt_recovery() -> bool:
-    """Recupera la DB desde backup."""
-    if not DB_BACKUP.exists():
+    """Recupera la DB desde la generación de backup más reciente que esté sana."""
+    candidates = [g for g in (_backup_generation(n) for n in range(BACKUP_KEEP + 1)) if g.exists()]
+    if not candidates:
         logger.error("No existe backup para recuperación")
         return False
 
-    try:
-        from security import verify_backup_hash
-        ok, msg = verify_backup_hash()
-        if not ok and "No hay hash" not in msg:
-            logger.error(f"Recovery cancelado: {msg}")
-            return False
-        if not ok:
-            logger.warning(f"Recovery sin hash verificable: {msg}")
-    except Exception as hash_err:
-        logger.warning(f"No se pudo verificar hash del backup: {hash_err}")
+    chosen = None
+    for cand in candidates:
+        if cand == DB_BACKUP:
+            try:
+                from security import verify_backup_hash
+                ok, msg = verify_backup_hash()
+                if not ok and "No hay hash" not in msg:
+                    logger.error(f"Backup principal descartado: {msg}")
+                    continue
+                if not ok:
+                    logger.warning(f"Recovery sin hash verificable: {msg}")
+            except Exception as hash_err:
+                logger.warning(f"No se pudo verificar hash del backup: {hash_err}")
+        if _is_healthy_db(cand):
+            chosen = cand
+            break
+        logger.error(f"Backup descartado (integrity_check falló): {cand.name}")
+
+    if chosen is None:
+        logger.error("Ningún backup pasó la verificación")
+        return False
 
     try:
         corrupted = APP_DIR / "tagfil_corrupted.db"
         if DB_PATH.exists():
             shutil.move(str(DB_PATH), str(corrupted))
-        shutil.copy2(DB_BACKUP, DB_PATH)
-        logger.warning(f"DB recuperada desde backup. Corrupto guardado en: {corrupted}")
+        # Los -wal/-shm del archivo dañado no deben quedar junto a la DB restaurada
+        for suffix in ("-wal", "-shm"):
+            stale = Path(str(DB_PATH) + suffix)
+            if stale.exists():
+                shutil.move(str(stale), str(corrupted) + suffix)
+        shutil.copy2(chosen, DB_PATH)
+        logger.warning(f"DB recuperada desde {chosen.name}. Corrupto guardado en: {corrupted}")
         return True
 
-    except (OSError, shutil.Error) as e:   # específico (#3)
+    except (OSError, shutil.Error) as e:   # específico en lugar de Exception (#3)
         logger.exception(f"Error recuperando DB: {e}")
         return False
 
@@ -197,6 +289,8 @@ def get_connection() -> sqlite3.Connection:
     # NOTA: en SQLite, cache_size negativo = kilobytes (no páginas)
     # -10000 = ~10 MB de caché en RAM. Positivo = número de páginas. (#4)
     conn.execute("PRAGMA cache_size=-10000")
+    # LOWER() de SQLite solo baja ASCII: «Éxito»/«Ñandú» no coincidirían
+    conn.create_function("ulower", 1, lambda s: s.lower() if isinstance(s, str) else s, deterministic=True)
     return conn
 
 
@@ -217,7 +311,7 @@ def _managed_connection():
 
 def init_db() -> None:
     """
-    Inicializa tablas, índices y tabla FTS5 con content table.
+    Inicializa tablas, índices y tabla FTS5 standalone.
     Verifica integridad y crea backup automático.
     """
     APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -282,41 +376,27 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_audit_events_created_at
                 ON audit_events(created_at);
 
-            -- FTS5 con content table — no duplica datos en disco (#2)
-            -- Lee name/description desde la tabla files directamente
+            -- FTS5 standalone (sin content table): name/description/tags viven
+            -- solo en el índice. La sincronización la hace _reindex_file(),
+            -- una única función llamada desde cada operación que cambia datos.
             CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
                 name,
                 description,
                 tags,
-                content=files,
-                content_rowid=id,
                 tokenize='unicode61 remove_diacritics 2'
             );
-
-            -- Triggers para mantener FTS5 sincronizado (#2)
-            CREATE TRIGGER IF NOT EXISTS files_fts_insert
-            AFTER INSERT ON files BEGIN
-                INSERT INTO files_fts(rowid, name, description, tags)
-                VALUES (new.id, new.name, new.description, '');
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS files_fts_delete
-            AFTER DELETE ON files BEGIN
-                INSERT INTO files_fts(files_fts, rowid, name, description, tags)
-                VALUES ('delete', old.id, old.name, old.description, '');
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS files_fts_update
-            AFTER UPDATE ON files BEGIN
-                INSERT INTO files_fts(files_fts, rowid, name, description, tags)
-                VALUES ('delete', old.id, old.name, old.description, '');
-                INSERT INTO files_fts(rowid, name, description, tags)
-                VALUES (new.id, new.name, new.description, '');
-            END;
         """)
+
+    _snapshot_before_migration()
 
     with _managed_connection() as conn:
         _run_migrations(conn)
+
+    try:
+        from tagfil.settings import get_settings
+        prune_audit_events(int(get_settings().get("audit_retention") or 0))
+    except Exception as e:
+        logger.debug(f"No se pudo aplicar la retención de auditoría: {e}")
 
     backup_db()
     logger.info(f"DB lista: {DB_PATH} (schema v{DB_SCHEMA_VERSION})")
@@ -409,6 +489,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         """)
         logger.info("Migración v4: auditoría de eventos agregada")
 
+    if version < 5:
+        # v5 — FTS5 standalone: elimina triggers y content table (columna
+        # 'tags' inexistente en files, doble 'delete', tokens huérfanos)
+        _rebuild_fts_index(conn)
+        logger.info("Migración v5: índice FTS reconstruido (standalone)")
+
     # Actualizar user_version al final de todas las migraciones
     conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
     logger.info(f"Schema actualizado a v{DB_SCHEMA_VERSION}")
@@ -418,30 +504,98 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 # FTS5 sync helper
 # ──────────────────────────────────────────────
 
-def _sync_fts(
-    conn: sqlite3.Connection,
-    file_id: int,
-    name: str,
-    description: str,
-    tags: list[str],
-    extra_terms: list[str] | None = None,
-) -> None:
+def _reindex_file(conn: sqlite3.Connection, file_id: int) -> None:
     """
-    Sincroniza manualmente el registro con FTS5.
-    Necesario para mantener el campo 'tags' actualizado
-    ya que los triggers solo cubren name y description.
+    Reindexa un archivo en FTS5 leyendo su estado actual desde la DB.
+    Única vía de escritura al índice: borra la entrada previa por rowid
+    (siempre válido en una tabla standalone) y la inserta de nuevo.
     """
-    # Eliminar entrada anterior
-    conn.execute(
-        "INSERT INTO files_fts(files_fts, rowid, name, description, tags) "
-        "VALUES ('delete', ?, ?, ?, '')",
-        (file_id, name, description),
-    )
-    # Insertar entrada actualizada con tags
+    conn.execute("DELETE FROM files_fts WHERE rowid = ?", (file_id,))
+    row = conn.execute(
+        """
+        SELECT name, description, short_name, document_type, entity,
+               document_date, qualifier, provider
+        FROM files WHERE id = ?
+        """,
+        (file_id,),
+    ).fetchone()
+    if row is None:
+        return
+    tags = [
+        r[0] for r in conn.execute(
+            """
+            SELECT t.name FROM tags t
+            JOIN file_tags ft ON ft.tag_id = t.id
+            WHERE ft.file_id = ?
+            ORDER BY t.name
+            """,
+            (file_id,),
+        )
+    ]
+    extra = [
+        row["short_name"], row["document_type"], row["entity"],
+        row["document_date"], row["qualifier"], row["provider"],
+    ]
+    terms = " ".join(t for t in tags + extra if t)
     conn.execute(
         "INSERT INTO files_fts(rowid, name, description, tags) VALUES (?, ?, ?, ?)",
-        (file_id, name, description, " ".join(tags + (extra_terms or []))),
+        (file_id, row["name"] or "", row["description"] or "", terms),
     )
+
+
+def _rebuild_fts_index(conn: sqlite3.Connection) -> None:
+    """Descarta triggers y tabla FTS anteriores y reconstruye el índice completo."""
+    conn.executescript("""
+        DROP TRIGGER IF EXISTS files_fts_insert;
+        DROP TRIGGER IF EXISTS files_fts_delete;
+        DROP TRIGGER IF EXISTS files_fts_update;
+        DROP TABLE IF EXISTS files_fts;
+        CREATE VIRTUAL TABLE files_fts USING fts5(
+            name,
+            description,
+            tags,
+            tokenize='unicode61 remove_diacritics 2'
+        );
+    """)
+    for (file_id,) in conn.execute("SELECT id FROM files").fetchall():
+        _reindex_file(conn, file_id)
+
+
+def check_fts_integrity() -> bool:
+    """Verifica la estructura del índice FTS5 (integrity_check normal no la ve)."""
+    try:
+        with _managed_connection() as conn:
+            conn.execute("INSERT INTO files_fts(files_fts, rank) VALUES('integrity-check', 0)")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Índice FTS dañado: {e}")
+        return False
+
+
+def rebuild_search_index() -> int:
+    """Reconstruye el índice de búsqueda desde cero. Retorna archivos indexados."""
+    with _managed_connection() as conn:
+        _rebuild_fts_index(conn)
+        return conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+
+
+def prune_audit_events(keep: int) -> int:
+    """Conserva solo los últimos `keep` eventos de auditoría. 0 o negativo = sin límite."""
+    if keep <= 0:
+        return 0
+    with _managed_connection() as conn:
+        cur = conn.execute(
+            """
+            DELETE FROM audit_events
+            WHERE id <= COALESCE(
+                (SELECT id FROM audit_events ORDER BY id DESC LIMIT 1 OFFSET ?), 0
+            )
+            """,
+            (keep,),
+        )
+        if cur.rowcount:
+            logger.info(f"Auditoría: {cur.rowcount} eventos antiguos eliminados (retención {keep})")
+        return cur.rowcount
 
 
 def _log_event(
@@ -477,43 +631,80 @@ def _log_event(
 # Operaciones principales
 # ──────────────────────────────────────────────
 
+class _Keep:
+    """Valor centinela: «conservar lo que ya hay guardado»."""
+    def __repr__(self) -> str:
+        return "KEEP"
+
+
+KEEP = _Keep()
+
+
+def _clean(value, default: str = "") -> str:
+    return default if value is None else str(value).strip()
+
+
 def upsert_file(
     path: str,
-    description: str,
-    tags: list[str] | None = None,
-    short_name: str = "",
-    document_type: str = "",
-    entity: str = "",
-    document_date: str = "",
-    sequence_number: int | None = None,
-    qualifier: str = "",
-    provider: str = "local",
+    description: "str | _Keep",
+    tags: "list[str] | None | _Keep" = KEEP,
+    short_name: "str | None | _Keep" = KEEP,
+    document_type: "str | None | _Keep" = KEEP,
+    entity: "str | None | _Keep" = KEEP,
+    document_date: "str | None | _Keep" = KEEP,
+    sequence_number: "int | str | None | _Keep" = KEEP,
+    qualifier: "str | None | _Keep" = KEEP,
+    provider: "str | None | _Keep" = KEEP,
     sync_metadata: bool | None = None,
 ) -> int:
-    """Crea o actualiza metadatos de un archivo."""
-    from security import validate_path, sanitize_description, sanitize_tags, save_backup_hash
+    """
+    Crea o actualiza metadatos de un archivo.
+
+    Actualización parcial: un argumento omitido (KEEP) conserva el valor ya
+    guardado. Pasar None o '' lo vacía explícitamente. Al crear, los campos
+    omitidos toman su valor por defecto. Si el archivo estaba en la papelera,
+    volver a registrarlo lo restaura.
+    """
+    from security import validate_path, sanitize_description, sanitize_tags
     ok, result = validate_path(path)
     if not ok:
         raise ValueError(f"Ruta inválida: {result}")
     path = result
     name = Path(path).name
-    now  = _utc_now()
-    description = sanitize_description(description)
-    tags = sanitize_tags(tags or [])
-    original_name = name
-    short_name = (short_name or "").strip()
-    document_type = (document_type or "").strip()
-    entity = (entity or "").strip()
-    document_date = (document_date or "").strip()
-    qualifier = (qualifier or "").strip()
-    provider = (provider or "local").strip() or "local"
-    if sequence_number in ("", None):
-        sequence_number = None
-    elif sequence_number is not None:
-        sequence_number = int(sequence_number)
+    now = _utc_now()
 
     try:
         with _managed_connection() as conn:
+            existing = conn.execute(
+                "SELECT * FROM files WHERE path = ?", (path,)
+            ).fetchone()
+
+            def pick(value, column: str, default: str = "") -> str:
+                if isinstance(value, _Keep):
+                    if existing is not None and existing[column] not in (None, ""):
+                        return existing[column]
+                    return default
+                return _clean(value, default)
+
+            description = (
+                existing["description"] or ""
+                if isinstance(description, _Keep) and existing is not None
+                else sanitize_description("" if isinstance(description, _Keep) else description)
+            )
+            short_name = pick(short_name, "short_name")
+            document_type = pick(document_type, "document_type")
+            entity = pick(entity, "entity")
+            document_date = pick(document_date, "document_date")
+            qualifier = pick(qualifier, "qualifier")
+            provider = pick(provider, "provider", "local") or "local"
+
+            if isinstance(sequence_number, _Keep):
+                sequence_number = existing["sequence_number"] if existing is not None else None
+            elif sequence_number in ("", None):
+                sequence_number = None
+            else:
+                sequence_number = int(sequence_number)
+
             row = conn.execute(
                 """
                 INSERT INTO files (
@@ -537,11 +728,12 @@ def upsert_file(
                     qualifier       = excluded.qualifier,
                     provider        = excluded.provider,
                     description     = excluded.description,
-                    updated_at      = excluded.updated_at
+                    updated_at      = excluded.updated_at,
+                    deleted_at      = NULL
                 RETURNING id
                 """,
                 (
-                    path, name, original_name, short_name,
+                    path, name, name, short_name,
                     document_type, entity, document_date, sequence_number,
                     qualifier, provider, description, now, now,
                 ),
@@ -549,34 +741,27 @@ def upsert_file(
 
             file_id = row["id"]
 
-            # Reemplazar etiquetas
-            conn.execute("DELETE FROM file_tags WHERE file_id = ?", (file_id,))
+            # Etiquetas: solo se reemplazan si el llamador las pasó
+            if not isinstance(tags, _Keep):
+                tags = sanitize_tags(tags or [])
+                conn.execute("DELETE FROM file_tags WHERE file_id = ?", (file_id,))
+                if tags:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO tags(name) VALUES (?)",
+                        [(t,) for t in tags],
+                    )
+                    placeholders = ",".join("?" * len(tags))
+                    tag_rows = conn.execute(
+                        f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
+                        tags,
+                    ).fetchall()
+                    tag_map = {r["name"]: r["id"] for r in tag_rows}
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO file_tags(file_id, tag_id) VALUES (?, ?)",
+                        [(file_id, tag_map[t]) for t in tags if t in tag_map],
+                    )
 
-            if tags:
-                conn.executemany(
-                    "INSERT OR IGNORE INTO tags(name) VALUES (?)",
-                    [(t,) for t in tags],
-                )
-                placeholders = ",".join("?" * len(tags))
-                tag_rows = conn.execute(
-                    f"SELECT id, name FROM tags WHERE name IN ({placeholders})",
-                    tags,
-                ).fetchall()
-                tag_map = {r["name"]: r["id"] for r in tag_rows}
-                conn.executemany(
-                    "INSERT OR IGNORE INTO file_tags(file_id, tag_id) VALUES (?, ?)",
-                    [(file_id, tag_map[t]) for t in tags if t in tag_map],
-                )
-
-            # Sync FTS5 con tags actualizados
-            _sync_fts(
-                conn,
-                file_id,
-                name,
-                description,
-                tags,
-                [short_name, document_type, entity, document_date, qualifier, provider],
-            )
+            _reindex_file(conn, file_id)
 
             _log_event(
                 conn,
@@ -584,7 +769,6 @@ def upsert_file(
                 file_id=file_id,
                 path=path,
                 details={
-                    "tag_count": len(tags),
                     "has_description": bool(description),
                     "has_short_name": bool(short_name),
                     "provider": provider,
@@ -688,26 +872,7 @@ def update_file_path(old_path: str, new_path: str) -> bool:
                 (new_path, new_name, _utc_now(), row["id"]),
             )
 
-            tags = conn.execute(
-                """
-                SELECT t.name FROM tags t
-                JOIN file_tags ft ON ft.tag_id = t.id
-                WHERE ft.file_id = ?
-                ORDER BY t.name
-                """,
-                (row["id"],),
-            ).fetchall()
-            _sync_fts(
-                conn,
-                row["id"],
-                new_name,
-                row["description"],
-                [t["name"] for t in tags],
-                [
-                    row["short_name"], row["document_type"], row["entity"],
-                    row["document_date"], row["qualifier"], row["provider"],
-                ],
-            )
+            _reindex_file(conn, row["id"])
             _log_event(
                 conn,
                 "file.rename",
@@ -772,11 +937,7 @@ def purge_file(path: str) -> bool:
 
             file_id = row["id"]
 
-            conn.execute(
-                "INSERT INTO files_fts(files_fts, rowid, name, description, tags) "
-                "VALUES ('delete', ?, ?, ?, '')",
-                (file_id, row["name"], row["description"]),
-            )
+            conn.execute("DELETE FROM files_fts WHERE rowid = ?", (file_id,))
             conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
             conn.execute("""
                 DELETE FROM tags
@@ -841,15 +1002,9 @@ def empty_trash() -> int:
             if not rows:
                 return 0
 
-            for row in rows:
-                conn.execute(
-                    "INSERT INTO files_fts(files_fts, rowid, name, description, tags) "
-                    "VALUES ('delete', ?, ?, ?, '')",
-                    (row["id"], row["name"], row["description"]),
-                )
-
             ids = [r["id"] for r in rows]
             placeholders = ",".join("?" * len(ids))
+            conn.execute(f"DELETE FROM files_fts WHERE rowid IN ({placeholders})", ids)
             conn.execute(f"DELETE FROM files WHERE id IN ({placeholders})", ids)
             conn.execute("""
                 DELETE FROM tags
@@ -983,10 +1138,11 @@ def _rows_to_dicts(rows, check_exists: bool = False) -> list[dict]:
     return result
 
 
-def list_all_files(check_exists: bool = False) -> list[dict]:
+def list_all_files(check_exists: bool = False, limit: int | None = None) -> list[dict]:
     """
     Lista todos los archivos registrados.
     check_exists=True valida en disco si cada archivo existe. (#2)
+    limit recorta en SQL, antes de consultar el disco.
     """
     try:
         with _managed_connection() as conn:
@@ -1004,7 +1160,9 @@ def list_all_files(check_exists: bool = False) -> list[dict]:
                 WHERE f.deleted_at IS NULL
                 GROUP BY f.id
                 ORDER BY f.updated_at DESC
-                """
+                LIMIT ?
+                """,
+                (int(limit) if limit else -1,),
             ).fetchall()
             return _rows_to_dicts(rows, check_exists=check_exists)
 
@@ -1081,40 +1239,39 @@ def get_untagged_files(check_exists: bool = False) -> list[dict]:
 
 def _sanitize_fts_query(query: str) -> str:
     """
-    Sanitiza query para FTS5 — evita errores con caracteres especiales.
-    Si detecta operadores o símbolos especiales, envuelve en comillas literales.
+    Convierte lo que escribe el usuario en una consulta FTS5 segura con
+    coincidencia por prefijo: «fact 2026» → "fact"* "2026"*  (AND implícito).
+    Cada término va entre comillas, así que operadores y símbolos son literales.
+    Devuelve '' si no queda ningún término utilizable.
+    """
+    terms = []
+    for raw in query.split():
+        term = raw.replace('"', "").strip()
+        if any(ch.isalnum() for ch in term):
+            terms.append(f'"{term}"*')
+    return " ".join(terms)
+
+
+def _escape_like(text: str) -> str:
+    """Escapa % y _ para usar el texto del usuario de forma literal en LIKE."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def search(query: str, check_exists: bool = False, limit: int | None = None) -> list[dict]:
+    """
+    Busca archivos usando FTS5 (por prefijo) con fallback a LIKE para
+    subcadenas. check_exists=True valida en disco solo las filas devueltas;
+    limit recorta en SQL.
     """
     query = query.strip()
     if not query:
-        return query
+        return list_all_files(check_exists=check_exists, limit=limit)
 
-    FTS_SPECIAL   = set('"()[]{}:*^~+-')
-    FTS_OPERATORS = {"OR", "AND", "NOT"}
-
-    needs_quoting = (
-        any(c in query for c in FTS_SPECIAL) or
-        any(w.upper() in FTS_OPERATORS for w in query.split())
-    )
-
-    if needs_quoting:
-        escaped = query.replace('"', '""')
-        return f'"{escaped}"'
-
-    return query
-
-
-def search(query: str, check_exists: bool = False) -> list[dict]:
-    """
-    Busca archivos usando FTS5 con fallback a LIKE.
-    check_exists=True valida en disco si cada archivo existe. (#2)
-    """
-    query = query.strip()
-    if not query:
-        return list_all_files(check_exists=check_exists)
+    sql_limit = int(limit) if limit else -1
 
     try:
         with _managed_connection() as conn:
-            like = f"%{query.lower()}%"
+            like = f"%{_escape_like(query.lower())}%"
             like_sql = """
                     SELECT
                         f.id, f.path, f.name, f.original_name, f.short_name,
@@ -1126,22 +1283,26 @@ def search(query: str, check_exists: bool = False) -> list[dict]:
                     LEFT JOIN file_tags ft ON ft.file_id = f.id
                     LEFT JOIN tags t       ON t.id = ft.tag_id
                     WHERE f.deleted_at IS NULL AND (
-                        LOWER(f.name)          LIKE ? OR
-                        LOWER(f.original_name) LIKE ? OR
-                        LOWER(f.short_name)    LIKE ? OR
-                        LOWER(f.document_type) LIKE ? OR
-                        LOWER(f.entity)        LIKE ? OR
-                        LOWER(f.document_date) LIKE ? OR
-                        LOWER(f.qualifier)     LIKE ? OR
-                        LOWER(f.provider)      LIKE ? OR
-                        LOWER(f.description)   LIKE ? OR
-                        LOWER(t.name)          LIKE ?)
+                        ULOWER(f.name)          LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.original_name) LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.short_name)    LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.document_type) LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.entity)        LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.document_date) LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.qualifier)     LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.provider)      LIKE ? ESCAPE '\\' OR
+                        ULOWER(f.description)   LIKE ? ESCAPE '\\' OR
+                        ULOWER(t.name)          LIKE ? ESCAPE '\\')
                     GROUP BY f.id
                     ORDER BY f.updated_at DESC
+                    LIMIT ?
                     """
-            like_args = (like, like, like, like, like, like, like, like, like, like)
+            like_args = (like,) * 10 + (sql_limit,)
+            safe_query = _sanitize_fts_query(query)
+            if not safe_query:
+                rows = conn.execute(like_sql, like_args).fetchall()
+                return _rows_to_dicts(rows, check_exists=check_exists)
             try:
-                safe_query = _sanitize_fts_query(query)
                 rows = conn.execute(
                     """
                     SELECT
@@ -1157,20 +1318,21 @@ def search(query: str, check_exists: bool = False) -> list[dict]:
                     WHERE files_fts MATCH ? AND f.deleted_at IS NULL
                     GROUP BY f.id
                     ORDER BY bm25(files_fts), f.updated_at DESC
+                    LIMIT ?
                     """,
-                    (safe_query,),
+                    (safe_query, sql_limit),
                 ).fetchall()
                 if not rows:
                     rows = conn.execute(like_sql, like_args).fetchall()
 
             except (sqlite3.OperationalError, sqlite3.DatabaseError):
-                logger.warning(f"FTS5 falló para '{query}', usando fallback LIKE")
+                logger.warning("FTS5 falló para la consulta, usando fallback LIKE")
                 rows = conn.execute(like_sql, like_args).fetchall()
 
             return _rows_to_dicts(rows, check_exists=check_exists)
 
     except sqlite3.Error as e:
-        logger.exception(f"Error en search ('{query}'): {e}")
+        logger.exception(f"Error en search: {e}")
         raise
 
 
@@ -1269,26 +1431,7 @@ def delete_tag(name: str) -> bool:
             conn.execute("DELETE FROM tags WHERE id = ?", (tag["id"],))
 
             for row in rows:
-                tag_rows = conn.execute(
-                    """
-                    SELECT t.name FROM tags t
-                    JOIN file_tags ft ON ft.tag_id = t.id
-                    WHERE ft.file_id = ?
-                    ORDER BY t.name
-                    """,
-                    (row["id"],),
-                ).fetchall()
-                _sync_fts(
-                    conn,
-                    row["id"],
-                    row["name"],
-                    row["description"],
-                    [t["name"] for t in tag_rows],
-                    [
-                        row["short_name"], row["document_type"], row["entity"],
-                        row["document_date"], row["qualifier"], row["provider"],
-                    ],
-                )
+                _reindex_file(conn, row["id"])
 
             logger.info(f"Etiqueta eliminada: {name} ({len(affected_ids)} archivos actualizados)")
             _log_event(

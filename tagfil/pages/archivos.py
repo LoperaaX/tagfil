@@ -430,6 +430,7 @@ class ArchivosPage(QWidget):
         super().__init__(parent)
         self._all_files: list[dict]       = []
         self._worker: SearchWorker | None = None
+        self._retired_workers: list[SearchWorker] = []   # hilos cancelados que aún terminan
         self._scan_worker: FolderScanWorker | None = None
         self._import_worker: FolderImportWorker | None = None
         self._search_id   = 0
@@ -673,19 +674,35 @@ class ArchivosPage(QWidget):
 
     def _run_search(self):
         query = self._search_input.text().strip()
-        if self._worker and self._worker.isRunning():
+        if self._worker is not None:
+            # No se espera al hilo anterior (bloquearía la UI mientras se escribe):
+            # se cancela y sus resultados se descartan por search_id.
             self._worker.stop()
-            self._worker.quit()
-            self._worker.wait()
-            self._worker.deleteLater()
-            self._worker = None
+            self._retired_workers.append(self._worker)
         self._search_id += 1
         current_id = self._search_id
-        self._worker = SearchWorker(query)
-        self._worker.results_ready.connect(
+        worker = SearchWorker(query)
+        worker.results_ready.connect(
             lambda r, sid=current_id: self._on_results(r, sid)
         )
-        self._worker.start()
+        worker.error.connect(
+            lambda msg, sid=current_id: self._on_search_error(msg, sid)
+        )
+        worker.finished.connect(lambda w=worker: self._on_worker_finished(w))
+        self._worker = worker
+        worker.start()
+
+    def _on_worker_finished(self, worker):
+        if worker in self._retired_workers:
+            self._retired_workers.remove(worker)
+        if self._worker is worker:
+            self._worker = None
+        worker.deleteLater()
+
+    def _on_search_error(self, message: str, search_id: int):
+        if search_id != self._search_id:
+            return
+        self._count_lbl.setText("No se pudo completar la búsqueda")
 
     def _on_results(self, results: list, search_id: int):
         if search_id != self._search_id:
@@ -785,6 +802,13 @@ class ArchivosPage(QWidget):
         self._debounce.start(SEARCH_DEBOUNCE_MS)
 
     def _on_import_folder(self):
+        # Mientras se importa, el mismo botón funciona como «Cancelar»
+        if self._import_worker is not None and self._import_worker.isRunning():
+            self._import_worker.stop()
+            self._btn_import.setEnabled(False)
+            self._btn_import.setText("Cancelando...")
+            return
+
         folder = QFileDialog.getExistingDirectory(
             self,
             "Importar carpeta",
@@ -842,7 +866,8 @@ class ArchivosPage(QWidget):
             self._reset_import_button()
             return
 
-        self._btn_import.setText("Importando...")
+        self._btn_import.setText("Cancelar importación")
+        self._btn_import.setEnabled(True)
         self._import_worker = FolderImportWorker(result)
         self._import_worker.progress.connect(self._on_import_progress)
         self._import_worker.completed.connect(self._on_import_finished)
@@ -866,6 +891,22 @@ class ArchivosPage(QWidget):
         QMessageBox.warning(self, "Importar carpeta", message)
         self._reset_import_button()
         self._run_search()
+
+    def shutdown_workers(self, timeout_ms: int = 8000) -> None:
+        """Detiene escaneo/importación en curso antes de cerrar la app (sin diálogos)."""
+        for worker in (self._scan_worker, self._import_worker):
+            if worker is not None and worker.isRunning():
+                for signal_name in ("completed", "scan_ready", "error", "progress"):
+                    try:
+                        getattr(worker, signal_name).disconnect()
+                    except (AttributeError, TypeError):
+                        pass
+                worker.stop()
+                worker.wait(timeout_ms)
+        for worker in [self._worker, *self._retired_workers]:
+            if worker is not None and worker.isRunning():
+                worker.stop()
+                worker.wait(3000)
 
     def _cleanup_scan_worker(self):
         if self._scan_worker:

@@ -25,7 +25,7 @@ class SearchWorker(QThread):
         try:
             if self._cancelled:
                 return
-            results = db.search(self.query, check_exists=True)[:SEARCH_MAX_RESULTS]
+            results = db.search(self.query, check_exists=True, limit=SEARCH_MAX_RESULTS)
             if not self._cancelled:
                 self.results_ready.emit(results)
         except Exception as e:

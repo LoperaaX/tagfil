@@ -33,7 +33,7 @@ if sys.platform == "win32":
 else:
     _base = Path.home()
 
-APP_DIR        = _base / APP_NAME          # %APPDATA%\TagFil
+APP_DIR        = Path(os.environ["TAGFIL_HOME"]) if os.getenv("TAGFIL_HOME") else _base / APP_NAME   # %APPDATA%\TagFil
 DB_PATH        = APP_DIR / "tagfil.db"
 LEGACY_DB_PATH = APP_DIR / "infofile.db"
 LOG_DIR    = APP_DIR / "logs"

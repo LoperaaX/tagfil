@@ -37,7 +37,7 @@ _mutex_handle = None
 
 def ensure_single_instance() -> bool:
     """
-    Garantiza que solo corra una instancia de InfoFile a la vez.
+    Garantiza que solo corra una instancia de TagFil a la vez (por sesión de usuario).
 
     Crea un Mutex de sistema con nombre único. Si ya existe,
     significa que hay otra instancia corriendo — retorna False.
@@ -56,11 +56,13 @@ def ensure_single_instance() -> bool:
     """
     global _mutex_handle
 
-    mutex_name = f"Global\\{APP_NAME}_SingleInstance_Mutex"
+    # «Local\\»: una instancia por sesión. Con «Global\\» un segundo usuario de la
+    # misma PC (cambio rápido de usuario / RDP) no podría abrir TagFil.
+    mutex_name = f"Local\\{APP_NAME}_SingleInstance_Mutex"
 
     try:
-        # Crear mutex con nombre global (visible a todos los usuarios del sistema)
-        handle = ctypes.windll.kernel32.CreateMutexW(
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.CreateMutexW(
             None,   # sin atributos de seguridad
             True,   # este proceso es el dueño inicial
             mutex_name,
@@ -70,11 +72,11 @@ def ensure_single_instance() -> bool:
             logger.error("No se pudo crear el mutex de instancia única")
             return True   # permitir continuar si falla la creación
 
-        last_error = ctypes.windll.kernel32.GetLastError()
+        last_error = ctypes.get_last_error()
 
         if last_error == 183:   # ERROR_ALREADY_EXISTS
-            ctypes.windll.kernel32.CloseHandle(handle)
-            logger.info("Ya existe otra instancia de InfoFile corriendo")
+            kernel32.CloseHandle(handle)
+            logger.info("Ya existe otra instancia de TagFil corriendo")
             return False
 
         # Esta es la instancia principal — guardar handle para no liberar
@@ -109,7 +111,7 @@ def focus_existing_window() -> None:
     try:
         import ctypes.wintypes
 
-        target_titles = [APP_NAME, f"{APP_NAME} "]
+        target_titles = {APP_NAME}
         found = ctypes.wintypes.HWND(0)
 
         EnumWindowsProc = ctypes.WINFUNCTYPE(
@@ -124,9 +126,14 @@ def focus_existing_window() -> None:
                 buf = ctypes.create_unicode_buffer(length + 1)
                 ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
                 title = buf.value
-                if any(title.startswith(t) for t in target_titles):
-                    found.value = hwnd
-                    return False   # detener enumeración
+                if title in target_titles:
+                    # Un Explorador abierto en una carpeta «TagFil» también tiene ese
+                    # título: solo se acepta una ventana Qt.
+                    cls = ctypes.create_unicode_buffer(256)
+                    ctypes.windll.user32.GetClassNameW(hwnd, cls, 256)
+                    if cls.value.startswith("Qt"):
+                        found.value = hwnd
+                        return False   # detener enumeración
             return True
 
         ctypes.windll.user32.EnumWindows(EnumWindowsProc(callback), 0)
@@ -210,12 +217,12 @@ def validate_path(path: str) -> tuple[bool, str]:
         if name_upper in _RESERVED_NAMES:
             return False, f"Nombre reservado del sistema: {part}"
 
-    # Verificar path traversal
+    # Verificar path traversal: solo cuenta «..» como componente completo
+    # (un archivo llamado «informe..final.pdf» es válido)
+    if ".." in p.parts:
+        return False, "La ruta contiene secuencias '..' no permitidas"
     try:
         resolved = str(p.resolve(strict=False))
-        # Si resolver cambia drásticamente la ruta, puede ser sospechoso
-        if ".." in path:
-            return False, "La ruta contiene secuencias '..' no permitidas"
     except Exception as e:
         return False, f"Ruta inválida: {e}"
 
@@ -249,8 +256,9 @@ def sanitize_description(text: str) -> str:
         if c in ("\n", "\r", "\t") or (ord(c) >= 32 and ord(c) != 127)
     )
 
-    # Eliminar tags HTML básicos por si acaso
-    text = re.sub(r"<[^>]{0,200}>", "", text)
+    # Eliminar etiquetas HTML reales (<b>, </div>, <script ...>). Exige una letra o «/»
+    # tras «<», así «Valor < 100 y > 50» o «<3» se conservan intactos.
+    text = re.sub(r"</?[A-Za-z][^<>]{0,200}>", "", text)
 
     # Normalizar espacios (pero mantener saltos de línea)
     lines = text.splitlines()
@@ -270,7 +278,8 @@ def sanitize_tags(tags: list[str]) -> list[str]:
     Sanitiza y valida una lista de tags.
 
     - Normaliza a minúsculas
-    - Elimina caracteres especiales (solo letras, números, guiones, puntos)
+    - Convierte espacios en guiones y elimina caracteres especiales
+      (solo letras, números, guiones, puntos)
     - Trunca tags largas
     - Limita el número total de tags
     - Elimina duplicados manteniendo orden
@@ -288,8 +297,11 @@ def sanitize_tags(tags: list[str]) -> list[str]:
         # Normalizar
         t = tag.strip().lower()
 
+        # Espacios → guion, para no fusionar palabras («cuenta de cobro»)
+        t = re.sub(r"\s+", "-", t)
+
         # Solo permitir letras, números, guiones, guiones bajos, puntos
-        t = re.sub(r"[^\w\-\.]", "", t, flags=re.UNICODE)
+        t = re.sub(r"[^\w\-\.]", "", t, flags=re.UNICODE).strip("-.")
 
         # Truncar
         if len(t) > _MAX_TAG_LEN:
@@ -430,7 +442,7 @@ def _dpapi_protect(data: bytes) -> bytes:
         ctypes.byref(out_blob),
     )
     if not ok:
-        raise OSError(ctypes.get_last_error())
+        raise ctypes.WinError()
 
     try:
         return ctypes.string_at(out_blob.pbData, out_blob.cbData)
@@ -452,7 +464,9 @@ def encrypt_backup_if_enabled() -> bool:
 
     try:
         encrypted = _dpapi_protect(backup_path.read_bytes())
-        _ENCRYPTED_BACKUP.write_bytes(encrypted)
+        tmp = _ENCRYPTED_BACKUP.with_suffix(".dpapi.tmp")
+        tmp.write_bytes(encrypted)
+        os.replace(tmp, _ENCRYPTED_BACKUP)
         logger.info(f"Backup cifrado creado: {_ENCRYPTED_BACKUP}")
         return True
     except Exception as e:

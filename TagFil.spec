@@ -1,27 +1,21 @@
-# InfoFile.spec
-# Archivo de configuración de PyInstaller para InfoFile
+# TagFil.spec
+# Configuración de PyInstaller para TagFil
 #
-# Uso:
-#   pyinstaller InfoFile.spec
+# Uso (desde la raíz del repo, con el entorno de desarrollo activo):
+#   pyinstaller TagFil.spec --noconfirm
 #
-# El .exe queda en: dist\InfoFile\InfoFile.exe
-
-import sys
-from pathlib import Path
-
-# ──────────────────────────────────────────────
-# Análisis de dependencias
-# ──────────────────────────────────────────────
+# El .exe queda en: dist\TagFil\TagFil.exe
+#
+# El overlay de Explorador (ShellExtension/) es experimental y NO se empaqueta
+# en el 0.2: su DLL no está firmada y no se registra por sí sola.
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
     datas=[
-        # Incluir la carpeta assets con el ícono
+        # Carpeta assets con el ícono y recursos visuales
         ('assets', 'assets'),
-        # Incluir la carpeta ShellExtension con la DLL compilada
-        ('ShellExtension/bin/Release/net48/InfoFileOverlay.dll', 'ShellExtension'),
     ],
     hiddenimports=[
         # PyQt6
@@ -30,15 +24,17 @@ a = Analysis(
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
         'PyQt6.sip',
-        # Módulos propios de InfoFile
+        # Módulos propios de TagFil
         'config',
         'database',
         'context_menu',
         'dialogs',
+        'launcher',
         'core',
         'core.naming',
         'tagfil',
         'tagfil.main_window',
+        'tagfil.settings',
         'tagfil.sidebar',
         'tagfil.theme',
         'tagfil.pages.resumen',
@@ -47,7 +43,9 @@ a = Analysis(
         'tagfil.pages.buscar',
         'tagfil.pages.configuracion',
         'tagfil.pages.papelera',
+        'tagfil.widgets.import_worker',
         'tagfil.widgets.search_worker',
+        'tagfil.widgets.starfield',
         'tagfil.widgets.ui_helpers',
         'tagfil.widgets.toggle_switch',
         'tagfil.widgets.theme_selector',
@@ -56,7 +54,6 @@ a = Analysis(
         'metadata',
         'startup',
         'security',
-        'shell_extension',
         # stdlib que PyInstaller a veces no detecta
         'sqlite3',
         'winreg',
@@ -68,27 +65,14 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Excluir lo que no necesitamos para reducir tamaño
+        # Solo se excluye lo que seguro no se usa. xml, email, http, urllib,
+        # html y multiprocessing se quitaron de esta lista: pywin32 y logging
+        # los importan de forma indirecta y romperían el .exe en tiempo de ejecución.
         'tkinter',
-        'unittest',
-        'email',
-        'html',
-        'http',
-        'urllib',
-        'xml',
-        'pydoc',
-        'doctest',
-        'difflib',
-        # 'pickle',  # necesario para logging.handlers
-        'multiprocessing',
     ],
     noarchive=False,
     optimize=1,
 )
-
-# ──────────────────────────────────────────────
-# Empaquetado
-# ──────────────────────────────────────────────
 
 pyz = PYZ(a.pure)
 
@@ -101,15 +85,15 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,           # comprimir con UPX si está disponible
+    upx=False,          # UPX sobre Qt provoca falsos positivos de antivirus y cuelgues
     console=False,      # sin ventana de consola (app gráfica)
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico',   # ícono del .exe
-    version='version_info.txt',  # metadata de versión
+    icon='assets/icon.ico',
+    version='version_info.txt',
 )
 
 coll = COLLECT(
@@ -117,7 +101,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='TagFil',
 )

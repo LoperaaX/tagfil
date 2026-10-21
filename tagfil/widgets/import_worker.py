@@ -185,10 +185,19 @@ class FolderImportWorker(QThread):
                 if self._cancelled:
                     break
                 try:
+                    # Si el archivo ya trae una descripción en el Explorador (ADS), se
+                    # adopta en vez de pisarla; si no hay nada, se conserva lo guardado.
+                    existing_desc = ""
+                    try:
+                        from metadata import read_explorer_description
+                        existing_desc = read_explorer_description(item["path"]) or ""
+                    except Exception:
+                        pass
                     db.upsert_file(
                         path=item["path"],
-                        description="",
-                        tags=item.get("tags", []),
+                        description=existing_desc if existing_desc else db.KEEP,
+                        tags=item["tags"] if item.get("tags") else db.KEEP,
+                        sync_metadata=False,   # nada nuevo que escribir en el disco
                     )
                     imported += 1
                 except Exception:

@@ -38,9 +38,9 @@ logs/
 Thumbs.db
 desktop.ini
 
-   # Runtime data
-   *.db
-   *.db-shm
-   *.db-wal
-   *.log
-   *.tmp
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.tmp

@@ -38,7 +38,6 @@ QSS = f"""
     font-family: 'Segoe UI', 'SF Pro Display', 'Inter', sans-serif;
     color: {C.TEXT};
     outline: none;
-    box-sizing: border-box;
 }}
 QMainWindow, QWidget {{
     background-color: {C.BG};

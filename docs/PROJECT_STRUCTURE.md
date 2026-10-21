@@ -1,74 +1,48 @@
-# TagFil Project Structure
+# Estructura actual de TagFil
 
-This is the target structure for keeping the app easy to grow while preserving
-the current desktop, Explorer, SQLite, and future cloud integration pieces.
+Revisada el 2026-10-21 tras integrar las mejoras.
 
-```text
-TagFil/
-  main.py                    # CLI and desktop entry point
-  requirements.txt
-  TagFil.spec                # PyInstaller build config
-  version_info.txt
+- `assets/`: icono y recursos de la aplicación.
+- `core/`: generación de nombres estructurados (`naming.py`).
+- `tagfil/`: ventana, navegación, estilos y preferencias.
+- `tagfil/pages/`: las seis páginas de la interfaz.
+- `tagfil/widgets/`: componentes e hilos de búsqueda e importación.
+- `tests/`: pruebas con datos temporales mediante `TAGFIL_HOME`.
+- `docs/`: documentación y auditorías.
+- `.github/workflows/`: pruebas automáticas de GitHub Actions.
+- `ShellExtension/`: código fuente del overlay experimental .NET.
 
-  assets/
-    icon.ico
+La entrada sigue siendo `main.py`. Los módulos de datos, seguridad e integración
+con Windows permanecen en la raíz: `config.py`, `database.py`, `security.py`,
+`metadata.py`, `context_menu.py`, `startup.py`, `launcher.py`, `dialogs.py` y
+`tray.py`. `TagFil.spec` y `version_info.txt` configuran el empaquetado.
+`demodata.py` conserva la utilidad opcional de datos de demostración.
 
-  tagfil/
-    __init__.py
-    main_window.py           # Main PyQt window shell
-    sidebar.py
-    theme.py
+## Carpetas necesarias
 
-    pages/                   # Full application views
-      resumen.py
-      archivos.py
-      etiquetas.py
-      buscar.py
-      configuracion.py
-      papelera.py
+`.git/` conserva el historial y `.venv/` contiene Python y las dependencias
+instaladas. No son residuos; ambas se conservaron, igual que el código, las
+pruebas, los recursos y la documentación.
 
-    widgets/                 # Reusable PyQt widgets
-      neon_icon.py
-      search_worker.py
-      theme_selector.py
-      toggle_switch.py
-      ui_helpers.py
+## Limpieza
 
-  core/                      # Recommended next move
-    __init__.py
-    config.py                # App constants and paths
-    database.py              # SQLite schema and queries
-    naming.py                # Short filename generation
-    security.py              # Validation, sanitization, single instance
+Se retiraron `build/`, `dist/`, `bin/`, `obj/`, los `__pycache__/` del código,
+`ShellExtension/bin/`, `ShellExtension/obj/`, el archivo `.lscache`, los dos PDF
+de prueba vacíos y el `desktop.ini` de la raíz. Se guardaron fuera del proyecto
+y están incluidos en el respaldo ZIP anterior a la integración.
 
-  explorer/                  # Recommended next move
-    context_menu.py          # HKCU context menu registration
-    metadata.py              # ADS and desktop.ini bridge
-    shell_extension.py       # Build/register overlay extension
+Python y los compiladores pueden recrear estas carpetas. `.gitignore` evita
+versionarlas; no impide que se creen al ejecutar o compilar.
 
-  integrations/              # Recommended future area
-    microsoft_graph.py       # OneDrive and SharePoint Graph client
-    sync.py                  # Sync orchestration and conflict handling
+## Datos
 
-  ShellExtension/            # .NET Explorer overlay source
-  docs/
-    PROJECT_STRUCTURE.md
-```
+Los datos reales viven en `%APPDATA%\TagFil`, o en `TAGFIL_HOME` si se define.
+No se modificaron durante la limpieza ni las verificaciones de esta integración.
 
-## Migration Order
+## Overlay experimental
 
-1. Keep `main.py` at the root until packaging is stable.
-2. Move UI-only modules into `tagfil/` first. This is already mostly done.
-3. Move `config.py`, `database.py`, and `security.py` into `core/` only after
-   updating imports and PyInstaller hidden imports.
-4. Move Explorer integration files into `explorer/` after confirming the
-   context menu and overlay registration still work.
-5. Add `integrations/` when OneDrive/SharePoint work begins. Use Microsoft
-   Graph as the source for cloud metadata; keep ADS as a local Explorer cache.
-
-## Naming Notes
-
-Use `TagFil` for user-facing product names, logs, registry labels, and packaged
-output. The current .NET overlay project still uses `InfoFileOverlay`; rename it
-in a dedicated change because COM registration and Explorer overlay identifiers
-are sensitive.
+Se conservan `ShellExtension/`, `shell_extension.py` y `overlay_server.py` porque
+son código fuente, aunque no se incluyen en el ejecutable principal. Las
+herramientas mantienen referencias heredadas `InfoFileOverlay`/`TagFilOverlay`
+que requieren una revisión específica antes de compilar y registrar COM.
+No se compiló ni registró el overlay durante esta integración.

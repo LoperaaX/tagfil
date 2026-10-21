@@ -10,8 +10,8 @@
 # ──────────────────────────────────────────────
 
 # Interfaz gráfica (UI, tray, diálogos)
-PyQt6>=6.6.0
-pywin32>=306
+PyQt6>=6.6.0,<7
+pywin32>=306; sys_platform == "win32"
 
 # No se necesitan dependencias externas adicionales:
 # - sqlite3    → incluido en Python (stdlib)

@@ -1,46 +1,10 @@
 import importlib
-import logging
-import os
-import sys
-import tempfile
 import unittest
-from pathlib import Path
+
+from _base import DbTestCase
 
 
-class DatabaseTest(unittest.TestCase):
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.appdata = Path(self._tmp.name)
-        self.old_appdata = os.environ.get("APPDATA")
-        os.environ["APPDATA"] = str(self.appdata)
-
-        for name in ["metadata", "security", "database", "config"]:
-            sys.modules.pop(name, None)
-
-        self.db = importlib.import_module("database")
-        self.db.init_db()
-
-    def tearDown(self):
-        root = logging.getLogger()
-        for handler in root.handlers[:]:
-            handler.close()
-            root.removeHandler(handler)
-
-        for name in ["metadata", "security", "database", "config"]:
-            sys.modules.pop(name, None)
-
-        if self.old_appdata is None:
-            os.environ.pop("APPDATA", None)
-        else:
-            os.environ["APPDATA"] = self.old_appdata
-
-        self._tmp.cleanup()
-
-    def _file(self, name="factura.pdf"):
-        path = self.appdata / name
-        path.write_text("demo", encoding="utf-8")
-        return path
-
+class DatabaseTest(DbTestCase):
     def test_tag_lifecycle_updates_counts_and_search(self):
         path = self._file()
 

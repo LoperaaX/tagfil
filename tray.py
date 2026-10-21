@@ -268,8 +268,20 @@ class TrayApp:
 
     def _quit(self) -> None:
         logger.info("Cerrando TagFil...")
+        # Detener importación/búsqueda en curso: cerrar con un QThread vivo aborta
+        # el proceso y deja la importación a medias sin registro de auditoría.
+        if self._win is not None:
+            try:
+                self._win.shutdown_workers()
+            except Exception as e:
+                logger.warning(f"No se pudieron detener los workers: {e}")
         try:
             db.optimize_db()
+        except Exception:
+            pass
+        try:
+            from security import release_single_instance
+            release_single_instance()
         except Exception:
             pass
         self._tray.hide()

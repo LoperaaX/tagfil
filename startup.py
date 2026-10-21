@@ -1,4 +1,4 @@
-"""
+r"""
 startup.py — Inicio automático de TagFil con Windows
 
 Registra o elimina TagFil en el registro de Windows para que
@@ -8,7 +8,8 @@ Usa HKEY_CURRENT_USER — no requiere permisos de administrador.
 
 Clave del registro:
     HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-    TagFil = "C:\...\py.exe" "C:\...\main.py"
+    TagFil = "C:\...\TagFil.exe"   (empaquetado)
+    TagFil = "C:\...\pythonw.exe" "C:\...\main.py"   (desarrollo)
 
 Uso:
     from startup import enable, disable, is_enabled
@@ -17,11 +18,9 @@ Uso:
     is_enabled() # verificar si está activo
 """
 
-import shutil
-import sys
 import winreg
-from pathlib import Path
 
+import launcher
 from config import APP_NAME, get_logger
 
 logger = get_logger(__name__)
@@ -38,12 +37,10 @@ _APP_KEY  = APP_NAME   # nombre de la entrada en el registro
 
 def _get_command() -> str:
     """
-    Construye el comando que Windows ejecuta al iniciar sesión.
-    Usa py.exe (launcher) para evitar el stub de WindowsApps.
+    Construye el comando que Windows ejecuta al iniciar sesión:
+    el .exe empaquetado, o el pythonw.exe del entorno actual + main.py.
     """
-    py = shutil.which("py") or sys.executable
-    main = str(Path(__file__).parent / "main.py")
-    return f'"{py}" "{main}"'
+    return launcher.command()
 
 
 # ──────────────────────────────────────────────

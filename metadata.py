@@ -150,7 +150,7 @@ def _write_desktop_ini(folder: Path, description: str) -> bool:
     ini_file = _ini_path(folder)
 
     try:
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         config.optionxform = str   # preservar mayúsculas en claves
 
         # Leer existente si ya hay uno
@@ -162,7 +162,8 @@ def _write_desktop_ini(folder: Path, description: str) -> bool:
         if _INI_SECTION not in config:
             config[_INI_SECTION] = {}
 
-        config[_INI_SECTION][_INI_KEY_TIP] = description
+        # InfoTip es una sola línea: los saltos de línea romperían el desktop.ini
+        config[_INI_SECTION][_INI_KEY_TIP] = " ".join(description.split())
 
         with open(ini_file, "w", encoding="utf-8-sig") as f:
             config.write(f)
@@ -176,7 +177,7 @@ def _write_desktop_ini(folder: Path, description: str) -> bool:
         logger.debug(f"desktop.ini actualizado: {ini_file}")
         return True
 
-    except (OSError, PermissionError) as e:
+    except (OSError, PermissionError, configparser.Error, ValueError) as e:
         logger.warning(f"No se pudo escribir desktop.ini en {folder}: {e}")
         return False
 
@@ -192,7 +193,7 @@ def _remove_desktop_ini_tip(folder: Path) -> bool:
 
     try:
         _clear_ini_attrs(ini_file)
-        config = configparser.ConfigParser()
+        config = configparser.ConfigParser(interpolation=None)
         config.optionxform = str
         config.read(ini_file, encoding="utf-8-sig")
 
@@ -204,6 +205,7 @@ def _remove_desktop_ini_tip(folder: Path) -> bool:
 
         if not config.sections():
             ini_file.unlink(missing_ok=True)
+            _clear_folder_readonly(folder)   # lo habíamos marcado nosotros al escribir el tip
             logger.debug(f"desktop.ini eliminado: {ini_file}")
         else:
             with open(ini_file, "w", encoding="utf-8-sig") as f:
@@ -257,6 +259,19 @@ def _set_folder_readonly(folder: Path) -> None:
             )
 
 
+def _clear_folder_readonly(folder: Path) -> None:
+    """Quita el atributo ReadOnly que _set_folder_readonly puso en la carpeta."""
+    if sys.platform == "win32":
+        import ctypes
+        FILE_ATTRIBUTE_READONLY = 0x01
+        current = ctypes.windll.kernel32.GetFileAttributesW(str(folder))
+        if current != 0xFFFFFFFF and current & FILE_ATTRIBUTE_READONLY:
+            ctypes.windll.kernel32.SetFileAttributesW(
+                str(folder),
+                current & ~FILE_ATTRIBUTE_READONLY,
+            )
+
+
 # ──────────────────────────────────────────────
 # API pública
 # ──────────────────────────────────────────────
@@ -297,7 +312,7 @@ def read_explorer_description(path: str | Path) -> str | None:
             return None
         try:
             _clear_ini_attrs(ini_file)
-            config = configparser.ConfigParser()
+            config = configparser.ConfigParser(interpolation=None)
             config.optionxform = str
             config.read(ini_file, encoding="utf-8-sig")
             result = config.get(_INI_SECTION, _INI_KEY_TIP, fallback=None)
@@ -342,7 +357,7 @@ if __name__ == "__main__":
     import sys
 
     path = sys.argv[1] if len(sys.argv) > 1 else __file__
-    desc = sys.argv[2] if len(sys.argv) > 2 else "Descripción de prueba desde InfoFile"
+    desc = sys.argv[2] if len(sys.argv) > 2 else "Descripción de prueba desde TagFil"
 
     p = Path(path)
     print(f"\nArchivo  : {p}")
