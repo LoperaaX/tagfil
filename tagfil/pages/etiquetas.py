@@ -12,11 +12,11 @@ Novedades:
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal, QByteArray, QRectF, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QByteArray, QEvent, QRectF, QSize
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
-    QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QDialog, QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QMenu, QPushButton, QScrollArea,
     QSizePolicy, QVBoxLayout, QWidget,
 )
@@ -54,6 +54,7 @@ _SVG_TRASH    = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" f
 _SVG_ALERT    = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>"""
 _SVG_TROPHY   = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>"""
 _SVG_CLOCK    = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>"""
+_SVG_PLUS     = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>"""
 _SVG_TAGOFF   = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M11.16 11.16 2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82l-7.17 7.17a2 2 0 0 1-2.83 0l-2.72-2.72"/></svg>"""
 
 
@@ -117,12 +118,75 @@ def _tag_svg(name: str) -> tuple[str, str]:
 
 
 # ══════════════════════════════════════════════════════════════════════
-# TAG CARD — barra arriba, pill, hover con acciones, menú contextual
+# HELPERS DE UI
 # ══════════════════════════════════════════════════════════════════════
 
-class TagCard(QWidget):
+def _rgba(hex_color: str, alpha: float) -> str:
+    """'#RRGGBB' + alfa 0–1 → 'rgba(r,g,b,a)'.
+
+    Qt interpreta '#RRGGBBAA' como '#AARRGGBB': por eso los colores con sufijo
+    hexadecimal (p. ej. '{color}22') salían con la transparencia al revés.
+    """
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{int(max(0.0, min(1.0, alpha)) * 255)})"
+
+
+class _ElidedLabel(QLabel):
+    """QLabel de una línea que recorta con «…» en vez de ensanchar el layout."""
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(parent)
+        self._full = text
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
+        self._refit()
+
+    def set_full_text(self, text: str):
+        self._full = text
+        self.setToolTip(text if text and text != "—" else "")
+        self._refit()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._refit()
+
+    def _refit(self):
+        shown = self.fontMetrics().elidedText(
+            self._full, Qt.TextElideMode.ElideRight, max(0, self.width())
+        )
+        if shown != self.text():
+            super().setText(shown)
+
+
+class _UsageBar(QWidget):
+    """Barra fina de uso relativo (pista + relleno), dibujada a mano."""
+
+    def __init__(self, pct: int, color: str, parent=None):
+        super().__init__(parent)
+        self._pct, self._color = pct, color
+        self.setFixedHeight(4)
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(C.BG5))
+        p.drawRoundedRect(QRectF(0, 0, self.width(), 4), 2, 2)
+        p.setBrush(QColor(self._color))
+        p.drawRoundedRect(QRectF(0, 0, max(6, self.width() * self._pct / 100), 4), 2, 2)
+        p.end()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# TAG CARD — sobria, con acciones al pasar el ratón y menú contextual
+# ══════════════════════════════════════════════════════════════════════
+
+class TagCard(QFrame):
     clicked        = pyqtSignal(str)
     request_delete = pyqtSignal(str)
+
+    HEIGHT = 132
 
     def __init__(self, name: str, count: int, max_count: int, parent=None):
         super().__init__(parent)
@@ -134,131 +198,122 @@ class TagCard(QWidget):
         self._svg   = svg
 
         self.setObjectName("tag_card")
-        self.setFixedHeight(140)
+        self.setFixedHeight(self.HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._hovered = False
         self._apply_style(False)
         self._build()
 
     def _apply_style(self, hovered: bool):
-        alpha = "99" if hovered else "44"
-        bg    = C.BG3 if hovered else C.BG2
+        border = _rgba(self._color, 0.70) if hovered else C.BORDER
+        bg     = C.BG3 if hovered else C.BG2
         self.setStyleSheet(f"""
-            QWidget#tag_card {{
+            QFrame#tag_card {{
                 background: {bg};
-                border: 1px solid {self._color}{alpha};
-                border-radius: 14px;
+                border: 1px solid {border};
+                border-radius: 12px;
             }}
         """)
 
     def enterEvent(self, e):
-        self._hovered = True
         self._apply_style(True)
-        if hasattr(self, "_action_bar"):
-            self._action_bar.setVisible(True)
+        self._action_bar.setVisible(True)
         super().enterEvent(e)
 
     def leaveEvent(self, e):
-        self._hovered = False
         self._apply_style(False)
-        if hasattr(self, "_action_bar"):
-            self._action_bar.setVisible(False)
+        self._action_bar.setVisible(False)
         super().leaveEvent(e)
 
     def _build(self):
-        # Barra de color en la parte superior
-        self._top_bar = QFrame(self)
-        self._top_bar.setFixedHeight(3)
-        self._top_bar.setStyleSheet(
-            f"background: {self._color}; border-top-left-radius: 14px; border-top-right-radius: 14px;"
-        )
-
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 12)
-        layout.setSpacing(5)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(0)
 
-        # Fila: icono + pill de conteo
         top_row = QHBoxLayout()
         top_row.setSpacing(0)
+
         ic = QLabel()
-        ic.setFixedSize(26, 26)
+        ic.setFixedSize(34, 34)
         ic.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ic.setPixmap(_svg_pixmap(self._svg, 26, self._color))
-        ic.setStyleSheet("background: transparent;")
+        ic.setPixmap(_svg_pixmap(self._svg, 18, self._color))
+        ic.setStyleSheet(
+            f"background: {_rgba(self._color, 0.14)}; border: none; border-radius: 9px;"
+        )
         top_row.addWidget(ic)
         top_row.addStretch()
+
         pill = QLabel(str(self._count))
         pill.setFixedHeight(20)
+        pill.setMinimumWidth(28)
         pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setStyleSheet(f"""
-            background: {self._color}22; color: {self._color};
-            border-radius: 10px; font-size: 11px; font-weight: 600; padding: 0 8px;
-        """)
-        top_row.addWidget(pill)
+        pill.setStyleSheet(
+            f"background: {C.BG4}; color: {C.TEXT2}; border: none; "
+            f"border-radius: 10px; font-size: 11px; font-weight: 600; padding: 0 8px;"
+        )
+        top_row.addWidget(pill, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addLayout(top_row)
-        layout.addSpacing(4)
+        layout.addSpacing(10)
 
-        # Nombre
-        nm = QLabel(self._name)
+        nm = _ElidedLabel(self._name)
         nm.setStyleSheet(
             f"font-size: 15px; font-weight: 700; color: {C.TEXT}; "
-            f"background: transparent; letter-spacing: -0.2px;"
+            f"background: transparent; border: none;"
         )
+        nm.set_full_text(self._name)
         layout.addWidget(nm)
 
-        # Conteo texto
-        cnt = QLabel(f"{self._count} archivos")
-        cnt.setStyleSheet(f"font-size: 11px; color: {C.TEXT3}; background: transparent;")
+        n = self._count
+        cnt = QLabel(f"{n} archivo{'s' if n != 1 else ''}")
+        cnt.setStyleSheet(
+            f"font-size: 11.5px; color: {C.TEXT3}; background: transparent; border: none;"
+        )
         layout.addWidget(cnt)
         layout.addStretch()
 
-        # Barra de progreso
-        bar_wrap = QWidget()
-        bar_wrap.setFixedHeight(3)
-        bar_wrap.setStyleSheet("background: transparent;")
-        self._bar_track = QFrame(bar_wrap)
-        self._bar_track.setGeometry(0, 0, 9999, 3)
-        self._bar_track.setStyleSheet(f"background: {self._color}22; border-radius: 2px;")
-        self._bar_fill = QFrame(bar_wrap)
-        self._bar_fill.setFixedHeight(3)
-        self._bar_fill.setStyleSheet(f"background: {self._color}; border-radius: 2px;")
-        self._bar_fill.setGeometry(0, 0, 40, 3)
-        layout.addWidget(bar_wrap)
+        layout.addWidget(_UsageBar(self._pct, self._color))
 
-        # Barra de acciones hover (oculta por defecto)
-        self._action_bar = QWidget(self)
+        # Barra de acciones (solo al pasar el ratón)
+        self._action_bar = QFrame(self)
+        self._action_bar.setObjectName("tag_actions")
         self._action_bar.setStyleSheet(f"""
-            background: {C.BG3};
-            border-bottom-left-radius: 14px;
-            border-bottom-right-radius: 14px;
-            border-top: 1px solid {self._color}33;
+            QFrame#tag_actions {{
+                background: {C.BG3};
+                border: none;
+                border-top: 1px solid {C.BORDER};
+                border-bottom-left-radius: 11px;
+                border-bottom-right-radius: 11px;
+            }}
         """)
-        self._action_bar.setFixedHeight(26)
+        self._action_bar.setFixedHeight(30)
         self._action_bar.setVisible(False)
         ab = QHBoxLayout(self._action_bar)
-        ab.setContentsMargins(8, 0, 8, 0)
-        ab.setSpacing(5)
+        ab.setContentsMargins(10, 0, 10, 0)
+        ab.setSpacing(6)
 
         btn_ver = QPushButton("Ver archivos")
+        btn_ver.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_ver.setStyleSheet(f"""
             QPushButton {{
-                background: {self._color}22; color: {self._color};
-                border: none; border-radius: 5px;
-                font-size: 10px; font-weight: 600; padding: 2px 8px;
+                background: {_rgba(C.PURPLE, 0.16)}; color: {C.PURPLE3};
+                border: none; border-radius: 6px;
+                font-size: 11px; font-weight: 600; padding: 3px 10px;
             }}
-            QPushButton:hover {{ background: {self._color}44; }}
+            QPushButton:hover {{ background: {_rgba(C.PURPLE, 0.30)}; }}
         """)
         btn_ver.clicked.connect(lambda: self.clicked.emit(self._name))
         ab.addWidget(btn_ver, 1)
 
-        btn_del = QPushButton("✕")
-        btn_del.setFixedSize(20, 20)
+        btn_del = QPushButton()
+        btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_del.setToolTip("Eliminar etiqueta")
+        btn_del.setFixedSize(22, 22)
+        btn_del.setIcon(QIcon(_svg_pixmap(_SVG_TRASH, 13, _MATTE_RED)))
+        btn_del.setIconSize(QSize(13, 13))
         btn_del.setStyleSheet(f"""
             QPushButton {{
-                background: {_MATTE_RED}22; color: {_MATTE_RED};
-                border: none; border-radius: 4px; font-size: 10px;
+                background: transparent; border: none; border-radius: 6px; padding: 0;
             }}
-            QPushButton:hover {{ background: {_MATTE_RED}44; }}
+            QPushButton:hover {{ background: {_rgba(_MATTE_RED, 0.22)}; }}
         """)
         btn_del.clicked.connect(lambda: self.request_delete.emit(self._name))
         ab.addWidget(btn_del)
@@ -292,14 +347,7 @@ class TagCard(QWidget):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        if hasattr(self, "_top_bar"):
-            self._top_bar.setGeometry(0, 0, self.width(), 3)
-        if hasattr(self, "_action_bar"):
-            self._action_bar.setGeometry(0, self.height() - 26, self.width(), 26)
-        if hasattr(self, "_bar_fill"):
-            avail = self.width() - 32
-            self._bar_track.setFixedWidth(avail)
-            self._bar_fill.setFixedWidth(max(6, int(avail * self._pct / 100)))
+        self._action_bar.setGeometry(1, self.height() - 31, self.width() - 2, 30)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -307,26 +355,59 @@ class TagCard(QWidget):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# STATS BAR — métricas clickeables con deltas y alerta proactiva
+# STATS BAR — un único panel con 5 métricas clicables
 # ══════════════════════════════════════════════════════════════════════
 
-class _StatItem(QWidget):
+class _StatItem(QFrame):
+    """Una métrica. Se construye UNA vez y luego solo se actualizan sus textos."""
     clicked = pyqtSignal()
 
-    def __init__(self, svg: str, icon_color: str, label: str,
-                 value: str, delta: str = "", delta_color: str = "",
-                 accent: str = "", parent=None):
+    def __init__(self, svg: str, label: str, parent=None):
         super().__init__(parent)
-        self._accent = accent or icon_color
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._svg = svg
         self.setObjectName("stat_item")
-        self._hovered = False
-        self._build(svg, icon_color, label, value, delta, delta_color)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._apply_style(False)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(12)
+
+        self._icon = QLabel()
+        self._icon.setFixedSize(36, 36)
+        self._icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._icon)
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        col.setContentsMargins(0, 0, 0, 0)
+
+        self._lbl = _ElidedLabel(label)
+        self._lbl.setStyleSheet(
+            f"font-size: 11.5px; font-weight: 500; "
+            f"color: {C.TEXT3}; background: transparent; border: none;"
+        )
+        self._val = _ElidedLabel("—")
+        self._val.setStyleSheet(
+            f"font-size: 18px; font-weight: 700; color: {C.TEXT}; "
+            f"background: transparent; border: none;"
+        )
+        self._delta = _ElidedLabel("")
+        self._delta.setStyleSheet(
+            f"font-size: 11px; color: {C.TEXT3}; background: transparent; border: none;"
+        )
+        col.addWidget(self._lbl)
+        col.addWidget(self._val)
+        col.addWidget(self._delta)
+        layout.addLayout(col, 1)
+
+        self.set_data(C.PURPLE3, "—")
 
     def _apply_style(self, hovered: bool):
         bg = C.BG3 if hovered else "transparent"
-        self.setStyleSheet(f"QWidget#stat_item {{ background: {bg}; border-radius: 8px; }}")
+        self.setStyleSheet(
+            f"QFrame#stat_item {{ background: {bg}; border: none; border-radius: 10px; }}"
+        )
 
     def enterEvent(self, e):
         self._apply_style(True)
@@ -340,65 +421,27 @@ class _StatItem(QWidget):
         if e.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
 
-    def _build(self, svg, icon_color, label, value, delta, delta_color):
-        # Limpiar layout si existe
-        old = self.layout()
-        if old:
-            while old.count():
-                item = old.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-            QWidget().setLayout(old)
+    def show_icon(self, visible: bool):
+        self._icon.setVisible(visible)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(10)
-
-        ic = QLabel()
-        ic.setFixedSize(16, 16)
-        ic.setPixmap(_svg_pixmap(svg, 16, icon_color))
-        ic.setStyleSheet("background: transparent;")
-        layout.addWidget(ic)
-
-        col = QVBoxLayout()
-        col.setSpacing(1)
-
-        lbl = QLabel(label)
-        lbl.setStyleSheet(f"font-size: 10px; color: {C.TEXT3}; background: transparent;")
-
-        val = QLabel(value)
-        val.setStyleSheet(
-            f"font-size: 13px; font-weight: 700; color: {C.TEXT}; background: transparent;"
+    def set_data(self, color: str, value: str, delta: str = "", delta_color: str = ""):
+        self._icon.setPixmap(_svg_pixmap(self._svg, 18, color))
+        self._icon.setStyleSheet(
+            f"background: {_rgba(color, 0.14)}; border: none; border-radius: 10px;"
         )
-        col.addWidget(lbl)
-        col.addWidget(val)
-
-        if delta:
-            dc = delta_color or C.TEXT3
-            d = QLabel(delta)
-            d.setStyleSheet(f"font-size: 10px; color: {dc}; background: transparent;")
-            col.addWidget(d)
-
-        layout.addLayout(col)
-
-        # Línea de acento inferior
-        self._line = QFrame(self)
-        self._line.setFixedHeight(2)
-        self._line.setStyleSheet(f"background: {self._accent}; border-radius: 1px;")
-
-    def resizeEvent(self, e):
-        super().resizeEvent(e)
-        if hasattr(self, "_line"):
-            self._line.setGeometry(0, self.height() - 2, self.width(), 2)
-
-    def refresh(self, svg, icon_color, label, value, delta, delta_color, accent):
-        self._accent = accent
-        self._build(svg, icon_color, label, value, delta, delta_color)
-        self.update()
+        self._val.set_full_text(value)
+        self._delta.set_full_text(delta)
+        self._delta.setVisible(bool(delta))
+        self._delta.setStyleSheet(
+            f"font-size: 11px; color: {delta_color or C.TEXT3}; "
+            f"background: transparent; border: none;"
+        )
 
 
 class StatsBar(QWidget):
     stat_clicked = pyqtSignal(str)  # "total"|"coverage"|"top"|"untagged"|"recent"
+
+    _COMPACT_BELOW = 760  # por debajo de este ancho se ocultan los iconos
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -407,152 +450,147 @@ class StatsBar(QWidget):
     def _build(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        root.setSpacing(10)
 
-        # ── Alerta proactiva ──────────────────────────────────────────
-        self._alert = QWidget()
-        self._alert.setObjectName("alert_bar")
-        self._alert.setStyleSheet(f"""
-            QWidget#alert_bar {{
-                background: {_MATTE_RED}15;
-                border-bottom: 1px solid {_MATTE_RED}40;
+        # ── Panel único ───────────────────────────────────────────────
+        panel = QFrame()
+        panel.setObjectName("stats_panel")
+        panel.setStyleSheet(f"""
+            QFrame#stats_panel {{
+                background: {C.BG2};
+                border: 1px solid {C.BORDER};
+                border-radius: 12px;
             }}
         """)
-        self._alert.setFixedHeight(32)
+        rl = QHBoxLayout(panel)
+        rl.setContentsMargins(6, 6, 6, 6)
+        rl.setSpacing(0)
+
+        self._s_total    = _StatItem(_SVG_TAG,    "Total etiquetas")
+        self._s_coverage = _StatItem(_SVG_FILES,  "Cobertura")
+        self._s_top      = _StatItem(_SVG_TROPHY, "Más usada")
+        self._s_untagged = _StatItem(_SVG_TAGOFF, "Sin etiquetar")
+        self._s_recent   = _StatItem(_SVG_CLOCK,  "Último cambio")
+        self._items = [self._s_total, self._s_coverage, self._s_top,
+                       self._s_untagged, self._s_recent]
+
+        pairs = list(zip(self._items, ("total", "coverage", "top", "untagged", "recent")))
+        for i, (w, key) in enumerate(pairs):
+            w.clicked.connect(lambda k=key: self.stat_clicked.emit(k))
+            rl.addWidget(w, 1)
+            if i < len(pairs) - 1:
+                wrap = QWidget()
+                wrap.setFixedWidth(1)
+                wrap.setStyleSheet("background: transparent;")
+                wl = QVBoxLayout(wrap)
+                wl.setContentsMargins(0, 12, 0, 12)
+                line = QFrame()
+                line.setStyleSheet(f"background: {C.BORDER}; border: none;")
+                wl.addWidget(line)
+                rl.addWidget(wrap)
+        root.addWidget(panel)
+
+        # ── Aviso (debajo del panel, solo si hay archivos sin etiquetar) ──
+        self._alert = QFrame()
+        self._alert.setObjectName("alert_bar")
+        self._alert.setStyleSheet(f"""
+            QFrame#alert_bar {{
+                background: {_rgba(C.AMBER, 0.08)};
+                border: 1px solid {_rgba(C.AMBER, 0.28)};
+                border-radius: 10px;
+            }}
+        """)
+        self._alert.setFixedHeight(40)
         self._alert.setVisible(False)
         al = QHBoxLayout(self._alert)
-        al.setContentsMargins(20, 0, 20, 0)
-        al.setSpacing(8)
+        al.setContentsMargins(14, 0, 8, 0)
+        al.setSpacing(10)
 
         aic = QLabel()
-        aic.setFixedSize(13, 13)
-        aic.setPixmap(_svg_pixmap(_SVG_ALERT, 13, _MATTE_RED))
-        aic.setStyleSheet("background: transparent;")
+        aic.setFixedSize(14, 14)
+        aic.setPixmap(_svg_pixmap(_SVG_ALERT, 14, C.AMBER))
+        aic.setStyleSheet("background: transparent; border: none;")
         al.addWidget(aic)
 
-        self._alert_lbl = QLabel()
+        self._alert_lbl = _ElidedLabel()
         self._alert_lbl.setStyleSheet(
-            f"font-size: 11.5px; color: {_MATTE_RED}; background: transparent;"
+            f"font-size: 12px; color: {C.TEXT2}; background: transparent; border: none;"
         )
         al.addWidget(self._alert_lbl, 1)
 
-        self._alert_btn = QPushButton("Ver archivos →")
+        self._alert_btn = QPushButton("Ver archivos")
+        self._alert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._alert_btn.setFixedHeight(26)
         self._alert_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {_MATTE_RED}20; color: {_MATTE_RED};
-                border: 1px solid {_MATTE_RED}50; border-radius: 6px;
-                font-size: 10.5px; padding: 2px 10px;
+                background: {_rgba(C.AMBER, 0.14)}; color: {C.AMBER};
+                border: none; border-radius: 7px;
+                font-size: 11.5px; font-weight: 600; padding: 0 12px;
             }}
-            QPushButton:hover {{ background: {_MATTE_RED}38; }}
+            QPushButton:hover {{ background: {_rgba(C.AMBER, 0.26)}; }}
         """)
         self._alert_btn.clicked.connect(lambda: self.stat_clicked.emit("untagged"))
         al.addWidget(self._alert_btn)
         root.addWidget(self._alert)
 
-        # ── Fila de stats ─────────────────────────────────────────────
-        row = QWidget()
-        row.setObjectName("stats_row_bg")
-        row.setStyleSheet(f"""
-            QWidget#stats_row_bg {{
-                background: {C.BG2};
-                border-bottom: 1px solid {C.BORDER};
-            }}
-        """)
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(6, 0, 6, 0)
-        rl.setSpacing(0)
-
-        self._s_total    = _StatItem(_SVG_TAG,    C.PURPLE3,   "Total etiquetas", "—", accent=C.PURPLE)
-        self._s_coverage = _StatItem(_SVG_FILES,  _MATTE_BLUE, "Cobertura",       "—", accent=_MATTE_BLUE)
-        self._s_top      = _StatItem(_SVG_TROPHY, _MATTE_TEAL, "Más usada",       "—", accent=_MATTE_TEAL)
-        self._s_untagged = _StatItem(_SVG_TAGOFF, _MATTE_RED,  "Sin etiquetar",   "—", accent=_MATTE_RED)
-        self._s_recent   = _StatItem(_SVG_CLOCK,  _MATTE_AMBER,"Último cambio",   "—", accent=_MATTE_AMBER)
-
-        pairs = [
-            (self._s_total,    "total"),
-            (self._s_coverage, "coverage"),
-            (self._s_top,      "top"),
-            (self._s_untagged, "untagged"),
-            (self._s_recent,   "recent"),
-        ]
-        for i, (w, key) in enumerate(pairs):
-            w.clicked.connect(lambda k=key: self.stat_clicked.emit(k))
-            rl.addWidget(w, 1)
-            if i < len(pairs) - 1:
-                div = QFrame()
-                div.setFixedWidth(1)
-                div.setStyleSheet(f"background: {C.BORDER}; border: none;")
-                div.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-                rl.addWidget(div)
-
-        root.addWidget(row)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        show = self.width() >= self._COMPACT_BELOW
+        for it in self._items:
+            it.show_icon(show)
 
     def update_stats(self, tags_data: list[dict], total_files: int):
         n_tags  = len(tags_data)
-        top_tag = tags_data[0] if tags_data else None
+        in_use  = sum(1 for t in tags_data if t["count"] > 0)
+        top_tag = max(tags_data, key=lambda t: t["count"]) if tags_data else None
 
-        # Archivos sin etiquetar
         try:
             untagged = len(db.get_untagged_files()) if hasattr(db, "get_untagged_files") else 0
         except Exception:
             untagged = 0
+        untagged = min(untagged, total_files) if total_files else untagged
         tagged_files = max(0, total_files - untagged)
-        pct = round(tagged_files / total_files * 100, 1) if total_files else 100.0
+        pct = round(tagged_files / total_files * 100, 1) if total_files else None
 
-        # Archivo reciente
         try:
             recent_list = db.get_recent_files(1) if hasattr(db, "get_recent_files") else []
             rname = recent_list[0].get("name", "—") if recent_list else "—"
-            rname = rname[:14] + "…" if len(rname) > 14 else rname
         except Exception:
             rname = "—"
 
-        # ── Total ──
-        self._s_total.refresh(
-            _SVG_TAG, C.PURPLE3,
-            "Total etiquetas", str(n_tags),
-            f"{n_tags} activas", C.PURPLE3, C.PURPLE
+        self._s_total.set_data(
+            C.PURPLE3, str(n_tags),
+            f"{in_use} en uso" if n_tags else "Sin etiquetas aún",
         )
 
-        # ── Cobertura ──
-        cov_color = _MATTE_TEAL if pct >= 90 else (_MATTE_AMBER if pct >= 60 else _MATTE_RED)
-        self._s_coverage.refresh(
-            _SVG_FILES, _MATTE_BLUE,
-            "Cobertura", f"{tagged_files}/{total_files}",
-            f"{pct}% etiquetados", cov_color, _MATTE_BLUE
-        )
+        if pct is None:
+            self._s_coverage.set_data(C.PURPLE3, "—", "Sin archivos")
+        else:
+            cov_color = C.GREEN if pct >= 90 else (C.AMBER if pct >= 60 else C.RED)
+            self._s_coverage.set_data(
+                cov_color, f"{pct:g}%", f"{tagged_files} de {total_files} etiquetados", cov_color
+            )
 
-        # ── Top ──
-        self._s_top.refresh(
-            _SVG_TROPHY, _MATTE_TEAL,
-            "Más usada",
-            top_tag["name"] if top_tag else "—",
-            f"{top_tag['count']} archivos" if top_tag else "",
-            _MATTE_TEAL, _MATTE_TEAL
-        )
+        if top_tag and top_tag["count"] > 0:
+            n = top_tag["count"]
+            self._s_top.set_data(
+                C.PURPLE3, top_tag["name"], f"{n} archivo{'s' if n != 1 else ''}"
+            )
+        else:
+            self._s_top.set_data(C.PURPLE3, "—", "")
 
-        # ── Sin etiquetar ──
-        ut_color = _MATTE_RED if untagged > 0 else _MATTE_TEAL
-        ut_delta = "⚠ Acción requerida" if untagged > 0 else "✓ Todo etiquetado"
-        self._s_untagged.refresh(
-            _SVG_TAGOFF, ut_color,
-            "Sin etiquetar", f"{untagged} archivos",
-            ut_delta, ut_color, ut_color
-        )
+        if untagged > 0:
+            self._s_untagged.set_data(C.AMBER, str(untagged), "Requieren etiqueta", C.AMBER)
+        else:
+            self._s_untagged.set_data(C.GREEN, "0", "Todo etiquetado", C.GREEN)
 
-        # ── Reciente ──
-        self._s_recent.refresh(
-            _SVG_CLOCK, _MATTE_AMBER,
-            "Último cambio", rname,
-            "", "", _MATTE_AMBER
-        )
+        self._s_recent.set_data(C.PURPLE3, rname, "Archivo más reciente" if rname != "—" else "")
 
-        # Alerta
         self._alert.setVisible(untagged > 0)
         if untagged > 0:
             s = "s" if untagged != 1 else ""
-            self._alert_lbl.setText(
-                f"<b>{untagged} archivo{s}</b> sin etiquetar — considera organizarlos"
+            self._alert_lbl.set_full_text(
+                f"{untagged} archivo{s} sin etiquetar. Etiquetarlos mejora tus búsquedas."
             )
 
 
@@ -781,158 +819,200 @@ class EmptyState(QWidget):
 class EtiquetasPage(QWidget):
     navigate_to_tag = pyqtSignal(str)  # emitida al hacer clic en una etiqueta
 
+    _GAP         = 12
+    _CARD_MIN_W  = 220
+    _MAX_COLS    = 5
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._tags_data:   list[dict] = []
         self._total_files: int        = 0
         self._sort_mode               = "count"
         self._search_query            = ""
+        self._cards:       list[QWidget] = []
+        self._empty:       QWidget | None = None
+        self._cols                    = 0
         self._build()
+
+    # ── Construcción ───────────────────────────────────────────────────
 
     def _build(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(32, 24, 32, 20)
         root.setSpacing(0)
 
-        # ── Header ────────────────────────────────────────────────────
-        header = QHBoxLayout()
-        header.setSpacing(10)
+        # Fila 1: título + acción principal
+        head = QHBoxLayout()
+        head.setSpacing(12)
 
+        titles = QVBoxLayout()
+        titles.setSpacing(2)
         title = QLabel("Etiquetas")
         title.setObjectName("page_title")
-        header.addWidget(title)
-        header.addStretch()
+        titles.addWidget(title)
+        sub = QLabel("Navega, filtra y ordena tus archivos por etiqueta")
+        sub.setStyleSheet(f"font-size: 12.5px; color: {C.TEXT3}; background: transparent;")
+        titles.addWidget(sub)
+        head.addLayout(titles)
+        head.addStretch()
 
-        # Buscador
+        self._btn_new = QPushButton("  Nueva etiqueta")
+        self._btn_new.setObjectName("btn_primary")
+        self._btn_new.setFixedHeight(38)
+        self._btn_new.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_new.setIcon(QIcon(_svg_pixmap(_SVG_PLUS, 14, "#FFFFFF")))
+        self._btn_new.setIconSize(QSize(14, 14))
+        self._btn_new.clicked.connect(self._prompt_new_tag)
+        head.addWidget(self._btn_new, alignment=Qt.AlignmentFlag.AlignTop)
+        root.addLayout(head)
+        root.addSpacing(18)
+
+        # Fila 2: búsqueda (flexible) + orden + ranking
+        bar = QHBoxLayout()
+        bar.setSpacing(10)
+
         self._search_frame = QFrame()
+        self._search_frame.setObjectName("tag_search")
         self._search_frame.setFixedHeight(38)
-        self._search_frame.setMinimumWidth(240)
-        self._search_frame.setMaximumWidth(320)
-        self._search_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {C.BG3};
-                border: 1px solid {C.BORDER2};
-                border-radius: 10px;
-            }}
-        """)
+        self._search_frame.setMinimumWidth(180)
+        self._search_frame.setMaximumWidth(420)
+        self._search_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._set_search_focus(False)
         sfl = QHBoxLayout(self._search_frame)
-        sfl.setContentsMargins(10, 0, 10, 0)
+        sfl.setContentsMargins(12, 0, 8, 0)
         sfl.setSpacing(8)
 
-        lupa = QLabel()
-        lupa.setFixedSize(15, 15)
-        lupa.setPixmap(_svg_pixmap(_SVG_SEARCH, 15, C.TEXT3))
-        lupa.setStyleSheet("background: transparent;")
-        self._lupa_lbl = lupa
-        sfl.addWidget(lupa)
+        # Solo la lupa, sin recuadro
+        self._lupa_lbl = QLabel()
+        self._lupa_lbl.setFixedSize(16, 16)
+        self._lupa_lbl.setPixmap(_svg_pixmap(_SVG_SEARCH, 16, C.TEXT3))
+        self._lupa_lbl.setStyleSheet("background: transparent; border: none; padding: 0;")
+        sfl.addWidget(self._lupa_lbl)
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("Buscar etiquetas...")
-        self._search_input.setStyleSheet(
-            f"background: transparent; border: none; font-size: 13px; color: {C.TEXT}; padding: 0;"
-        )
+        self._search_input.setPlaceholderText("Buscar etiquetas…")
+        self._search_input.setStyleSheet(f"""
+            QLineEdit, QLineEdit:focus {{
+                background: transparent; border: none; padding: 0;
+                font-size: 13px; color: {C.TEXT};
+            }}
+        """)
         self._search_input.textChanged.connect(self._on_search)
-        self._search_input.focusInEvent  = self._on_focus_in
-        self._search_input.focusOutEvent = self._on_focus_out
+        self._search_input.installEventFilter(self)
         sfl.addWidget(self._search_input, 1)
 
-        self._clear_btn = QPushButton("✕")
-        self._clear_btn.setFixedSize(16, 16)
-        self._clear_btn.setStyleSheet(
-            f"background: transparent; border: none; color: {C.TEXT3}; font-size: 10px;"
-        )
+        self._clear_btn = QPushButton()
+        self._clear_btn.setFixedSize(20, 20)
+        self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._clear_btn.setToolTip("Limpiar búsqueda")
+        self._clear_btn.setIcon(QIcon(_svg_pixmap(_SVG_CLOSE, 11, C.TEXT3)))
+        self._clear_btn.setIconSize(QSize(11, 11))
+        self._clear_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 10px; padding: 0; }}
+            QPushButton:hover {{ background: {C.BG4}; }}
+        """)
         self._clear_btn.clicked.connect(lambda: self._search_input.clear())
         self._clear_btn.setVisible(False)
         sfl.addWidget(self._clear_btn)
-        header.addWidget(self._search_frame)
-        header.addSpacing(6)
+        bar.addWidget(self._search_frame, 1)
+        bar.addStretch(1)
 
-        # Botón Más usados
-        self._btn_mas = QPushButton("  Más usados")
-        self._btn_mas.setObjectName("btn_sort_active")
-        self._btn_mas.setFixedHeight(38)
-        self._btn_mas.setIcon(QIcon(_svg_pixmap(_SVG_STAR, 13, C.PURPLE3)))
-        self._btn_mas.setIconSize(QSize(13, 13))
-        self._btn_mas.clicked.connect(lambda: self._set_sort("count"))
-        header.addWidget(self._btn_mas)
+        # Control segmentado de orden
+        seg = QFrame()
+        seg.setObjectName("seg_group")
+        seg.setFixedHeight(38)
+        seg.setStyleSheet(f"""
+            QFrame#seg_group {{
+                background: {C.BG2}; border: 1px solid {C.BORDER}; border-radius: 10px;
+            }}
+            QPushButton {{
+                background: transparent; color: {C.TEXT2}; border: none;
+                border-radius: 7px; padding: 0 14px; font-size: 12.5px; font-weight: 600;
+            }}
+            QPushButton:hover {{ color: {C.TEXT}; }}
+            QPushButton:checked {{ background: {C.PURPLE_DIM2}; color: {C.PURPLE3}; }}
+        """)
+        sl = QHBoxLayout(seg)
+        sl.setContentsMargins(3, 3, 3, 3)
+        sl.setSpacing(2)
+        self._btn_mas = QPushButton("Más usados")
+        self._btn_az  = QPushButton("A–Z")
+        for b, mode in ((self._btn_mas, "count"), (self._btn_az, "alpha")):
+            b.setCheckable(True)
+            b.setMinimumWidth(92)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda _=False, m=mode: self._set_sort(m))
+            sl.addWidget(b)
+        self._btn_mas.setChecked(True)
+        bar.addWidget(seg)
 
-        # Botón A-Z
-        self._btn_az = QPushButton("⇅  A-Z")
-        self._btn_az.setObjectName("btn_ghost")
-        self._btn_az.setFixedHeight(38)
-        self._btn_az.clicked.connect(lambda: self._set_sort("alpha"))
-        header.addWidget(self._btn_az)
-
-        # Botón Ranking
         self._btn_ranking = QPushButton("  Ranking")
         self._btn_ranking.setObjectName("btn_ghost")
         self._btn_ranking.setFixedHeight(38)
-        self._btn_ranking.setIcon(QIcon(_svg_pixmap(_SVG_RANKING, 13, C.TEXT3)))
-        self._btn_ranking.setIconSize(QSize(13, 13))
+        self._btn_ranking.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_ranking.setIcon(QIcon(_svg_pixmap(_SVG_RANKING, 14, C.TEXT2)))
+        self._btn_ranking.setIconSize(QSize(14, 14))
         self._btn_ranking.clicked.connect(self._open_ranking)
-        header.addWidget(self._btn_ranking)
+        bar.addWidget(self._btn_ranking)
 
-        root.addLayout(header)
-        root.addSpacing(6)
+        root.addLayout(bar)
+        root.addSpacing(16)
 
-        # Separador degradado
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"""
-            background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                stop:0 transparent, stop:0.1 {C.BORDER2},
-                stop:0.9 {C.BORDER2}, stop:1 transparent);
-            border: none;
-        """)
-        root.addWidget(sep)
-
-        # ── Stats Bar ─────────────────────────────────────────────────
+        # Panel de métricas
         self._stats_bar = StatsBar()
         self._stats_bar.stat_clicked.connect(self._on_stat_clicked)
         root.addWidget(self._stats_bar)
-        root.addSpacing(12)
+        root.addSpacing(18)
 
-        # Sub-título dinámico
-        self._lbl_count = QLabel("Mis Etiquetas")
+        # Subtítulo dinámico
+        self._lbl_count = QLabel("")
         self._lbl_count.setStyleSheet(
-            f"font-size: 11px; font-weight: 700; color: {C.TEXT3}; "
-            f"background: transparent; letter-spacing: 0.6px; padding-bottom: 8px;"
+            f"font-size: 12px; font-weight: 600; color: {C.TEXT3}; "
+            f"background: transparent; padding-bottom: 10px;"
         )
         root.addWidget(self._lbl_count)
 
-        # Grid scroll — 4 columnas
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet(f"""
+        # Cuadrícula con columnas adaptables
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet(f"""
             QScrollArea {{ background: transparent; border: none; }}
-            QScrollBar:vertical {{ background: transparent; width: 4px; }}
-            QScrollBar::handle:vertical {{ background: {C.BORDER2}; border-radius: 2px; }}
+            QScrollBar:vertical {{ background: transparent; width: 6px; margin: 0; }}
+            QScrollBar::handle:vertical {{ background: {C.BORDER2}; border-radius: 3px; min-height: 32px; }}
+            QScrollBar::handle:vertical:hover {{ background: {C.PURPLE}; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         """)
         self._grid_container = QWidget()
         self._grid_container.setStyleSheet("background: transparent;")
         self._grid = QGridLayout(self._grid_container)
-        self._grid.setContentsMargins(0, 0, 0, 0)
-        self._grid.setSpacing(12)
-        scroll.setWidget(self._grid_container)
-        root.addWidget(scroll, 1)
+        self._grid.setContentsMargins(0, 0, 8, 0)
+        self._grid.setSpacing(self._GAP)
+        self._scroll.setWidget(self._grid_container)
+        root.addWidget(self._scroll, 1)
 
-    # ── Focus buscador ─────────────────────────────────────────────────
+    # ── Foco del buscador ──────────────────────────────────────────────
 
-    def _on_focus_in(self, e):
-        QLineEdit.focusInEvent(self._search_input, e)
+    def _set_search_focus(self, focused: bool):
+        border = C.PURPLE if focused else C.BORDER
         self._search_frame.setStyleSheet(f"""
-            QFrame {{ background: {C.BG3}; border: 1.5px solid {C.PURPLE}; border-radius: 10px; }}
+            QFrame#tag_search {{
+                background: {C.BG2}; border: 1px solid {border}; border-radius: 10px;
+            }}
         """)
-        self._lupa_lbl.setPixmap(_svg_pixmap(_SVG_SEARCH, 15, C.PURPLE3))
+        if hasattr(self, "_lupa_lbl"):
+            self._lupa_lbl.setPixmap(
+                _svg_pixmap(_SVG_SEARCH, 16, C.PURPLE3 if focused else C.TEXT3)
+            )
 
-    def _on_focus_out(self, e):
-        QLineEdit.focusOutEvent(self._search_input, e)
-        self._search_frame.setStyleSheet(f"""
-            QFrame {{ background: {C.BG3}; border: 1px solid {C.BORDER2}; border-radius: 10px; }}
-        """)
-        self._lupa_lbl.setPixmap(_svg_pixmap(_SVG_SEARCH, 15, C.TEXT3))
+    def eventFilter(self, obj, ev):
+        if obj is getattr(self, "_search_input", None):
+            if ev.type() == QEvent.Type.FocusIn:
+                self._set_search_focus(True)
+            elif ev.type() == QEvent.Type.FocusOut:
+                self._set_search_focus(False)
+        return super().eventFilter(obj, ev)
 
     # ── Modal ranking ──────────────────────────────────────────────────
 
@@ -946,13 +1026,14 @@ class EtiquetasPage(QWidget):
         modal.move(x, y)
         modal.exec()
 
-    # ── Stats clicks ───────────────────────────────────────────────────
+    # ── Clics en métricas ──────────────────────────────────────────────
 
     def _on_stat_clicked(self, key: str):
         if key == "untagged":
             self.navigate_to_tag.emit("__untagged__")
         elif key == "top" and self._tags_data:
-            self._search_input.setText(self._tags_data[0]["name"])
+            top = max(self._tags_data, key=lambda t: t["count"])
+            self._search_input.setText(top["name"])
         elif key in ("coverage", "total"):
             self._open_ranking()
         elif key == "recent":
@@ -976,7 +1057,7 @@ class EtiquetasPage(QWidget):
 
     def _apply_sort(self):
         if self._sort_mode == "count":
-            self._tags_data.sort(key=lambda t: t["count"], reverse=True)
+            self._tags_data.sort(key=lambda t: (-t["count"], t["name"].lower()))
         else:
             self._tags_data.sort(key=lambda t: t["name"].lower())
 
@@ -984,43 +1065,78 @@ class EtiquetasPage(QWidget):
         q = self._search_query.strip().lower()
         return [t for t in self._tags_data if q in t["name"].lower()] if q else self._tags_data
 
+    def _columns(self) -> int:
+        w = self._scroll.viewport().width() - self._grid.contentsMargins().right()
+        cols = (w + self._GAP) // (self._CARD_MIN_W + self._GAP)
+        return max(1, min(self._MAX_COLS, cols))
+
+    def _clear_grid(self):
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._cards = []
+        self._empty = None
+
     def _render(self):
         filtered  = self._filtered_tags()
         max_count = max((t["count"] for t in filtered), default=1)
 
-        # Sub-título
         total = len(self._tags_data)
         shown = len(filtered)
-        if self._search_query:
+        if self._search_query.strip():
             self._lbl_count.setText(
-                f"{shown} resultado{'s' if shown != 1 else ''} de {total} etiquetas"
+                f"{shown} resultado{'s' if shown != 1 else ''} de {total} "
+                f"etiqueta{'s' if total != 1 else ''}"
             )
         else:
-            self._lbl_count.setText(f"MIS ETIQUETAS  ·  {total} EN TOTAL")
+            order = "por uso" if self._sort_mode == "count" else "alfabéticamente"
+            self._lbl_count.setText(
+                f"{total} etiqueta{'s' if total != 1 else ''} · ordenadas {order}"
+                if total else "Sin etiquetas todavía"
+            )
 
-        # Limpiar grid
-        for i in reversed(range(self._grid.count())):
-            item = self._grid.itemAt(i)
-            if item and item.widget():
-                item.widget().deleteLater()
+        self._clear_grid()
 
         if not filtered:
-            empty = EmptyState(self._search_query)
-            empty.create_requested.connect(self._on_create_tag)
-            self._grid.addWidget(empty, 0, 0, 1, 4)
+            self._empty = EmptyState(self._search_query.strip())
+            self._empty.create_requested.connect(self._on_create_tag)
         else:
-            COLS = 4
-            for i, tag in enumerate(filtered):
+            for tag in filtered:
                 card = TagCard(tag["name"], tag["count"], max_count)
                 card.clicked.connect(self.navigate_to_tag)
                 card.request_delete.connect(self._on_delete_tag)
-                self._grid.addWidget(card, i // COLS, i % COLS)
-            remainder = len(filtered) % COLS
-            if remainder:
-                for j in range(COLS - remainder):
-                    filler = QWidget()
-                    filler.setStyleSheet("background: transparent;")
-                    self._grid.addWidget(filler, len(filtered) // COLS, remainder + j)
+                self._cards.append(card)
+        self._place()
+
+    def _place(self):
+        """Coloca los widgets actuales en la cuadrícula según el ancho disponible."""
+        cols = self._columns()
+        self._cols = cols
+        while self._grid.count():
+            self._grid.takeAt(0)          # no destruye los widgets
+        for c in range(self._MAX_COLS + 1):
+            self._grid.setColumnStretch(c, 1 if c < cols else 0)
+        for r in range(len(self._cards) + 2):
+            self._grid.setRowStretch(r, 0)
+
+        if self._empty is not None:
+            self._grid.addWidget(self._empty, 0, 0, 1, cols)
+            self._grid.setRowStretch(1, 1)
+            return
+        for i, card in enumerate(self._cards):
+            self._grid.addWidget(card, i // cols, i % cols)
+        self._grid.setRowStretch((len(self._cards) - 1) // cols + 1, 1)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if (self._cards or self._empty is not None) and self._columns() != self._cols:
+            self._place()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if (self._cards or self._empty is not None) and self._columns() != self._cols:
+            self._place()
 
     def _on_search(self, text: str):
         self._search_query = text
@@ -1029,10 +1145,8 @@ class EtiquetasPage(QWidget):
 
     def _set_sort(self, mode: str):
         self._sort_mode = mode
-        self._btn_mas.setObjectName("btn_sort_active" if mode == "count" else "btn_ghost")
-        self._btn_az.setObjectName("btn_sort_active"  if mode == "alpha" else "btn_ghost")
-        self._btn_mas.setStyle(self._btn_mas.style())
-        self._btn_az.setStyle(self._btn_az.style())
+        self._btn_mas.setChecked(mode == "count")
+        self._btn_az.setChecked(mode == "alpha")
         self._apply_sort()
         self._render()
 
@@ -1055,10 +1169,19 @@ class EtiquetasPage(QWidget):
             except Exception as e:
                 logger.exception(f"Error eliminando etiqueta: {e}")
 
+    def _prompt_new_tag(self):
+        name, ok = QInputDialog.getText(self, "Nueva etiqueta", "Nombre de la etiqueta:")
+        if ok and name.strip():
+            self._on_create_tag(name.strip())
+
     def _on_create_tag(self, name: str):
         try:
             db.create_tag(name)
             self._search_input.clear()
             self.refresh()
+        except ValueError:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Nombre no válido",
+                                "Usa letras, números o guiones en el nombre de la etiqueta.")
         except Exception as e:
             logger.exception(f"Error creando etiqueta: {e}")

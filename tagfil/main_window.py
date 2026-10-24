@@ -80,7 +80,11 @@ class MainWindow(QMainWindow):
 
         # Contenedor del contenido con fondo animado
         self._content_wrap = QWidget()
-        self._content_wrap.setStyleSheet("background: transparent;")
+        # Los fondos transparentes se limitan a estos contenedores (por objectName).
+        # Sin selector, «background: transparent» se heredaba a todos los widgets
+        # de todas las páginas y anulaba el fondo de los botones del tema (btn_primary).
+        self._content_wrap.setObjectName("content_wrap")
+        self._content_wrap.setStyleSheet("QWidget#content_wrap { background: transparent; }")
         cl = QVBoxLayout(self._content_wrap)
         cl.setContentsMargins(0, 0, 0, 0)
         cl.setSpacing(0)
@@ -90,7 +94,8 @@ class MainWindow(QMainWindow):
         self._bg.lower()
 
         self._stack = QStackedWidget()
-        self._stack.setStyleSheet("background: transparent;")
+        self._stack.setObjectName("page_stack")
+        self._stack.setStyleSheet("QStackedWidget#page_stack { background: transparent; }")
 
         self._pages: list[QWidget] = [
             ResumenPage(),    # 0

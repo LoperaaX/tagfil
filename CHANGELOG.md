@@ -28,7 +28,14 @@ para conservar generaciones incluso con respaldos frecuentes.
 - Retención de auditoría (`audit_retention`) ahora se aplica al iniciar.
 - Escritura atómica del backup cifrado; código de error real en DPAPI.
 
+- **Pestaña «Todos los archivos»:** el botón «Importar carpeta» ya no tapa a la búsqueda (la cabecera pasa a dos filas y la búsqueda se ensancha según el espacio), la lupa se ve sin recuadro y el chip «Todos» (y los de cada tipo) ya no se corta.
+- Los botones del tema (p. ej. «Importar carpeta» y «Más usados») recuperan su fondo en todas las páginas: dos reglas `background: transparent` sin selector en `main_window.py` se heredaban a todos los hijos y lo anulaban.
+
 ### Añadido
+- **Página de etiquetas:** integración del rediseño con tarjetas y cuadrícula
+  adaptables, métricas actualizadas sin reconstruir widgets, botón «Nueva etiqueta»,
+  búsqueda con foco y orden segmentado. Prueba de integración con datos aislados
+  para creación, búsqueda, orden, cobertura, ranking y tamaños de ventana.
 - `launcher.py` (comando de relanzamiento para el registro de Windows).
 - `check_fts_integrity()`, `rebuild_search_index()`, `prune_audit_events()`.
 - Soporte de `TAGFIL_HOME` para aislar los datos (tests, instalaciones portables).

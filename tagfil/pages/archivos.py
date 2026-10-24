@@ -4,10 +4,11 @@ pages/archivos.py — Página "Todos los archivos" con grid y filtros.
 from collections import Counter
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
+    QSizePolicy,
     QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
@@ -196,6 +197,14 @@ class NeonFilterBtn(QPushButton):
 
         self._set_active(False)
 
+    # El contenido (ícono + texto) vive en un layout interno; sin esto el botón
+    # se dimensiona como si estuviera vacío y el texto queda recortado.
+    def sizeHint(self):
+        return QSize(self.layout().sizeHint().width(), 34)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
     def _color(self) -> str:
         if self._ext is None:
             return C.PURPLE3
@@ -239,6 +248,9 @@ class NeonFilterBtn(QPushButton):
             self._text_lbl.setStyleSheet(
                 f"background: transparent; font-size: 12px; font-weight: 600; color: {C.TEXT2};"
             )
+        # El peso de la fuente cambia con el estado: recalcular el ancho
+        self.layout().invalidate()
+        self.updateGeometry()
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -451,12 +463,15 @@ class ArchivosPage(QWidget):
 
         # ── Panel principal ───────────────────────────────────────────
         main_panel = QWidget()
-        main_panel.setStyleSheet("background: transparent;")
+        # Un «background: transparent» sin selector se heredaba a todos los hijos y
+        # anulaba el fondo morado de «Importar carpeta» (btn_primary del tema).
+        main_panel.setObjectName("archivos_main_panel")
+        main_panel.setStyleSheet("QWidget#archivos_main_panel { background: transparent; }")
         ml = QVBoxLayout(main_panel)
         ml.setContentsMargins(32, 28, 20, 20)
         ml.setSpacing(0)
 
-        # Header
+        # Fila 1: título + acción principal
         header = QHBoxLayout()
         header.setSpacing(10)
         title = QLabel("Todos los archivos")
@@ -464,29 +479,46 @@ class ArchivosPage(QWidget):
         header.addWidget(title)
         header.addStretch()
 
-        # Buscador con lupa SVG neón
+        self._btn_import = QPushButton("Importar carpeta")
+        self._btn_import.setObjectName("btn_primary")
+        self._btn_import.setFixedHeight(42)
+        self._btn_import.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_import.clicked.connect(self._on_import_folder)
+        header.addWidget(self._btn_import)
+        ml.addLayout(header)
+        ml.addSpacing(14)
+
+        # Fila 2: buscador (se ensancha) + orden + panel lateral.
+        # Todo junto en una sola fila no cabe en la ventana por defecto (el
+        # buscador de 300 px fijos empujaba y tapaba al botón de importar).
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(10)
+
+        # Buscador con lupa SVG neón. El estilo se limita al marco por su
+        # objectName: un «QFrame {...}» genérico también alcanzaba a la lupa
+        # (un QLabel es un QFrame) y le dibujaba un recuadro.
         sf = QFrame()
+        sf.setObjectName("search_frame")
         sf.setStyleSheet(f"""
-            QFrame {{
+            QFrame#search_frame {{
                 background: {C.BG3};
                 border: 1px solid {C.BORDER2};
                 border-radius: 12px;
             }}
-            QFrame:focus-within {{
-                border-color: {C.PURPLE};
-            }}
         """)
-        sf.setFixedWidth(300)
+        # Dejar espacio a los controles con ambos paneles abiertos a 960 px.
+        sf.setMinimumWidth(120)
         sf.setFixedHeight(42)
+        sf.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         sfl = QHBoxLayout(sf)
         sfl.setContentsMargins(12, 0, 12, 0)
         sfl.setSpacing(8)
 
-        # Lupa SVG
+        # Lupa SVG: solo el ícono, sin fondo ni borde
         lupa = QLabel()
         lupa.setFixedSize(16, 16)
         lupa.setPixmap(_svg_to_pixmap(_SVG_SEARCH, 16, C.PURPLE3))
-        lupa.setStyleSheet("background: transparent;")
+        lupa.setStyleSheet("background: transparent; border: none;")
         sfl.addWidget(lupa)
 
         self._search_input = QLineEdit()
@@ -505,27 +537,20 @@ class ArchivosPage(QWidget):
         self._clear_btn.clicked.connect(lambda: self._search_input.clear())
         self._clear_btn.setVisible(False)
         sfl.addWidget(self._clear_btn)
-        header.addWidget(sf)
+        toolbar.addWidget(sf, 1)
 
         # Botones sort
-        self._btn_import = QPushButton("Importar carpeta")
-        self._btn_import.setObjectName("btn_primary")
-        self._btn_import.setFixedHeight(42)
-        self._btn_import.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_import.clicked.connect(self._on_import_folder)
-        header.addWidget(self._btn_import)
-
         self._btn_mas = QPushButton("Más usados")
         self._btn_mas.setObjectName("btn_sort_active")
         self._btn_mas.setFixedHeight(42)
         self._btn_mas.clicked.connect(lambda: self._set_sort("usage"))
-        header.addWidget(self._btn_mas)
+        toolbar.addWidget(self._btn_mas)
 
         self._btn_az = QPushButton("⇅  A-Z")
         self._btn_az.setObjectName("btn_ghost")
         self._btn_az.setFixedHeight(42)
         self._btn_az.clicked.connect(lambda: self._set_sort("alpha"))
-        header.addWidget(self._btn_az)
+        toolbar.addWidget(self._btn_az)
 
         # Botón toggle panel derecho (ícono SVG)
         self._btn_toggle_panel = QPushButton()
@@ -534,10 +559,10 @@ class ArchivosPage(QWidget):
         self._btn_toggle_panel.setToolTip("Mostrar/ocultar panel lateral")
         self._btn_toggle_panel.clicked.connect(self._toggle_panel)
         self._update_toggle_btn_icon(True)
-        header.addWidget(self._btn_toggle_panel)
+        toolbar.addWidget(self._btn_toggle_panel)
 
         self._sort_mode = "usage"
-        ml.addLayout(header)
+        ml.addLayout(toolbar)
         ml.addSpacing(16)
 
         # Separador
